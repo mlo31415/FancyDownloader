@@ -5,6 +5,7 @@ from optparse import OptionParser
 from xmlrpc import client
 from tkinter import filedialog
 import xml.etree.ElementTree as ET
+import os
 
 
 
@@ -27,10 +28,16 @@ api = client.ServerProxy(url)
 listOfAllPages=api.pages.select({"site" : "fancyclopedia"})
 listOfAllPages.sort()
 
+os.chdir('site')
+
 for pageName in listOfAllPages:
     api = client.ServerProxy(url)
-    p=api.pages.get_one({"site" : "fancyclopedia", "page" : "_default:"+pageName})
-    print(p)
+    pageData=api.pages.get_one({"site" : "fancyclopedia", "page" : pageName})
+    if pageData.get("content", None) != None:
+        with open(pageName + ".txt", "w") as file:
+            print(pageData["content"], file=file)
+
+    print(pageData)
 
 print("Done")
 
