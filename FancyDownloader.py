@@ -4,31 +4,31 @@ import sys
 from optparse import OptionParser
 from xmlrpc import client
 from tkinter import filedialog
-import xml
+import xml.etree.ElementTree as ET
+
+
+
+# Write a default position file if nothing exists
+try:
+    file=open("FancyDownloaderState.xml")
+    file.close()
+except:
+    root=ET.Element("root")
+    position=ET.SubElement(root, "Position")
+    position.text="FAPA"
+    tree=ET.ElementTree(root)
+    tree.write("FancyDownloaderState.xml")
 
 # Open the site
-
 url=open("url.txt").read()
 api = client.ServerProxy(url)
 
-
 # Get the page list and sort it
-retry=True
-while retry:
-    try:
-        pages=api.pages.select({"site" : "fancyclopedia"})
-        retry=False
-    except:
-        retry=True
-
+pages=api.pages.select({"site" : "fancyclopedia"})
 pages.sort()
 
-text=open("FancyDownloaderState.xml").read()
-
-fullname=api.page_exists("fapa")
-categories=api.get_categories()
-name=api.get_username()
-
+for page in pages:
+    p=api.get_one({"site" : "fancyclopedia", "page" : page})
 
 print("Done")
 
