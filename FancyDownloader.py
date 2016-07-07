@@ -24,11 +24,13 @@ url=open("url.txt").read()
 api = client.ServerProxy(url)
 
 # Get the page list and sort it
-pages=api.pages.select({"site" : "fancyclopedia"})
-pages.sort()
+listOfAllPages=api.pages.select({"site" : "fancyclopedia"})
+listOfAllPages.sort()
 
-for page in pages:
-    p=api.get_one({"site" : "fancyclopedia", "page" : page})
+for pageName in listOfAllPages:
+    api = client.ServerProxy(url)
+    p=api.pages.get_one({"site" : "fancyclopedia", "page" : "_default:"+pageName})
+    print(p)
 
 print("Done")
 
