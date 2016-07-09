@@ -19,6 +19,9 @@ def DecodeDatetime(dtstring):
 # The page's contents are stored in their files, the source in <pageName>.txt, the HTML in <pageName>..html, and all of the page information in <pageName>.xml
 # The return value is True when the Wikidot version of the page is newer than the local version, and False otherwise
 def DownloadPage(pageName):
+
+    print("starting download of '"+pageName+"'")
+
     # Download the page's data
     api = client.ServerProxy(url)
     pageData=api.pages.get_one({"site" : "fancyclopedia", "page" : pageName})
@@ -32,12 +35,12 @@ def DownloadPage(pageName):
 
     # Write the page source to <pageName>.txt
     if pageData.get("content", None) != None:
-        with open(pageName + ".txt", "w") as file:
-            file.write(pageData["content"])
+        with open(pageName + ".txt", "wb") as file:
+            file.write(pageData["content"].encode("utf8"))
 
     if pageData.get("html", None) != None:
-        with open(pageName + ".html", "w") as file:
-            file.write(pageData["html"])
+        with open(pageName + ".html", "wb") as file:
+            file.write(pageData["html"].encode("utf8"))
 
     # Write the rest of the page's data to <pageName>.xml
     root=ET.Element("data")
@@ -58,7 +61,7 @@ def DownloadPage(pageName):
             element=ET.SubElement(root, itemName)
             element.text=str(pageData[itemName])
 
-        print(itemName + ": " + str(pageData[itemName]))
+        # print(itemName + ": " + str(pageData[itemName]))
 
     # And write it out.
     tree=ET.ElementTree(root)
