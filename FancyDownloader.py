@@ -80,7 +80,10 @@ for p in list:
 listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages] # Create a list of pages which are in the wiki and not downloaded
 listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages] # Create a list of pages which are dowloaded but not in the wiki
 
-
+# Now, get as much as possible of the list of recently modified pages.
+api = client.ServerProxy(url)
+listOfRecentlyUpdatedPages=api.pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
+# listOfRecentlyUpdatedPages=[ii for n,ii in enumerate(list) if ii not in list[:n]] # REmove duplicates
 
 # Download the pages
 for pageName in listOfAllWikiPages:
