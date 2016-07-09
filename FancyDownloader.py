@@ -20,7 +20,7 @@ def DecodeDatetime(dtstring):
 # The return value is True when the Wikidot version of the page is newer than the local version, and False otherwise
 def DownloadPage(pageName):
 
-    print("starting download of '"+pageName+"'")
+    print("   Downloading: '"+pageName+"'")
 
     # Download the page's data
     api = client.ServerProxy(url)
@@ -95,34 +95,47 @@ except:
     tree=ET.ElementTree(root)
     tree.write("FancyDownloaderState.xml")
 
-# Get the page list from the wiki and sort it
-api = client.ServerProxy(url)
-listOfAllWikiPages=api.pages.select({"site" : "fancyclopedia"})
-listOfAllWikiPages.sort()
-
-# Get the page list from the downloaded directory and use that to create lists of missing pages and deleted pages
-list=os.listdir(".")
-listOfAllDirPages=[]
-for p in list:
-    if p.endswith(".txt"):
-        listOfAllDirPages.append(p[:-4])    # Since all pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
-
-listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages] # Create a list of pages which are in the wiki and not downloaded
-listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages] # Create a list of pages which are dowloaded but not in the wiki
-
 # Now, get as much as possible of the list of recently modified pages.
 api = client.ServerProxy(url)
 listOfRecentlyUpdatedPages=api.pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
 # listOfRecentlyUpdatedPages=[ii for n,ii in enumerate(list) if ii not in list[:n]] # Remove duplicates
 
 # Download the recently updated pages until we start finding pages we already have
+print("Downloading recently updated pages...")
 for pageName in listOfRecentlyUpdatedPages:
     if not DownloadPage(pageName):
         break
 
+# Get the page list from the wiki and sort it
+api = client.ServerProxy(url)
+listOfAllWikiPages = api.pages.select({"site": "fancyclopedia"})
+listOfAllWikiPages.sort()
+
+# Get the page list from the downloaded directory and use that to create lists of missing pages and deleted pages
+print("Creating list of local files")
+list = os.listdir(".")
+listOfAllDirPages = []
+for p in list:
+    if p.endswith(".txt"):
+        listOfAllDirPages.append(p[:-4])  # Since all pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
+
 # Now download missing pages
+print("Downloading missing pages...")
+listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages]  # Create a list of pages which are in the wiki and not downloaded
 for pageName in listOfAllMissingPages:
     DownloadPage(pageName)
+
+# And delete local copies of pages which have disappared fromt he wiki
+print("Removing deleted pages...")
+listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which are dowloaded but not in the wiki
+for pageName in listOfAllDeletedPages:
+    print("   Removing: " + pageName)
+    if os.path.isfile(pageName + ".xml"):
+        os.remove(pageName + ".xml")
+    if os.path.isfile(pageName + ".html"):
+        os.remove(pageName + ".html")
+    if os.path.isfile(pageName + ".txt"):
+        os.remove(pageName + ".txt")
 
 print("Done")
 
