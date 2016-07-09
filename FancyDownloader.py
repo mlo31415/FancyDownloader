@@ -47,6 +47,9 @@ def downloadPage(pageName):
 # ---------------------------------------------
 # Main
 
+# Get the magic URL for api access
+url=open("url.txt").read()
+
 # Change the working directory to the destination of the downloaded wiki
 cwd=os.getcwd()
 os.chdir(cwd+'/site')
@@ -62,19 +65,25 @@ except:
     tree=ET.ElementTree(root)
     tree.write("FancyDownloaderState.xml")
 
-# Get the magic URL for api access
-url=open("url.txt").read()
-
 # Get the page list from the wiki and sort it
 api = client.ServerProxy(url)
-listOfAllPages=api.pages.select({"site" : "fancyclopedia"})
-listOfAllPages.sort()
+listOfAllWikiPages=api.pages.select({"site" : "fancyclopedia"})
+listOfAllWikiPages.sort()
 
-# Get the page list from the downloaded directory
+# Get the page list from the downloaded directory and use that to create lists of missing pages and deleted pages
+list=os.listdir(".")
+listOfAllDirPages=[]
+for p in list:
+    if p.endswith(".txt"):
+        listOfAllDirPages.append(p[:-4])    # Since all pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
+
+listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages] # Create a list of pages which are in the wiki and not downloaded
+listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages] # Create a list of pages which are dowloaded but not in the wiki
+
 
 
 # Download the pages
-for pageName in listOfAllPages:
+for pageName in listOfAllWikiPages:
     downloadPage(pageName)
 
 print("Done")
