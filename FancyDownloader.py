@@ -7,6 +7,7 @@ from tkinter import filedialog
 import xml.etree.ElementTree as ET
 import os
 import datetime
+import WikidotHelpers
 
 def DecodeDatetime(dtstring):
     if dtstring == None:
@@ -16,33 +17,31 @@ def DecodeDatetime(dtstring):
     return datetime.datetime.strptime(dtstring[:-6], '%Y-%m-%dT%H:%M:%S')
 
 # Download a page from Wikidot.
-# The page's contents are stored in their files, the source in <pageName>.txt, the HTML in <pageName>..html, and all of the page information in <pageName>.xml
+# The page's contents are stored in their files, the source in <saveName>.txt, the HTML in <saveName>..html, and all of the page information in <saveName>.xml
 # The return value is True when the Wikidot version of the page is newer than the local version, and False otherwise
-def DownloadPage(pageName):
-
-    print("   Downloading: '"+pageName+"'")
+def DownloadPage(saveName):
 
     # Download the page's data
-    api = client.ServerProxy(url)
-    pageData=api.pages.get_one({"site" : "fancyclopedia", "page" : pageName})
+    print("   Downloading: '"+saveName+"'")
+    pageData=client.ServerProxy(url).pages.get_one({"site" : "fancyclopedia", "page" : saveName.replace("_", ":", 1)})  # Convert back to the ":" form for downloading)
 
     # Get the updated time for the local version
     localUpdatedTime=None
-    if os.path.isfile(pageName+".xml"):
-        tree=ET.parse(pageName+".xml")
+    if os.path.isfile(saveName+".xml"):
+        tree=ET.parse(saveName+".xml")
         doc=tree.getroot()
         localUpdatedTime=doc.find("updated_at").text
 
-    # Write the page source to <pageName>.txt
+    # Write the page source to <saveName>.txt
     if pageData.get("content", None) != None:
-        with open(pageName + ".txt", "wb") as file:
+        with open(saveName + ".txt", "wb") as file:
             file.write(pageData["content"].encode("utf8"))
 
     if pageData.get("html", None) != None:
-        with open(pageName + ".html", "wb") as file:
+        with open(saveName + ".html", "wb") as file:
             file.write(pageData["html"].encode("utf8"))
 
-    # Write the rest of the page's data to <pageName>.xml
+    # Write the rest of the page's data to <saveName>.xml
     root=ET.Element("data")
     for itemName in pageData:
         if itemName == "content" or itemName == "html":   # We've already dealt with this
@@ -65,7 +64,7 @@ def DownloadPage(pageName):
 
     # And write it out.
     tree=ET.ElementTree(root)
-    tree.write(pageName+".xml")
+    tree.write(saveName+".xml")
 
 
     tWiki=DecodeDatetime(wikiUpdatedTime)
@@ -95,37 +94,30 @@ except:
     tree=ET.ElementTree(root)
     tree.write("FancyDownloaderState.xml")
 
-# Now, get as much as possible of the list of recently modified pages.
-api = client.ServerProxy(url)
-listOfRecentlyUpdatedPages=api.pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
-# listOfRecentlyUpdatedPages=[ii for n,ii in enumerate(list) if ii not in list[:n]] # Remove duplicates
+# Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
+listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
+listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # replace the first ":" with "_" in all page names
 
 # Download the recently updated pages until we start finding pages we already have
 print("Downloading recently updated pages...")
-for pageName in listOfRecentlyUpdatedPages:
-    if not DownloadPage(pageName):
+for pageName in listOfAllWikiPages:
+    if not DownloadPage(pageName):  # Quit as soon as we start re-loading pages which have not been updated
         break
 
-# Get the page list from the wiki and sort it
-api = client.ServerProxy(url)
-listOfAllWikiPages = api.pages.select({"site": "fancyclopedia"})
-listOfAllWikiPages.sort()
-
-# Get the page list from the downloaded directory and use that to create lists of missing pages and deleted pages
+# Get the page list from the local directory and use that to create lists of missing pages and deleted pages
 print("Creating list of local files")
 list = os.listdir(".")
-listOfAllDirPages = []
-for p in list:
-    if p.endswith(".txt"):
-        listOfAllDirPages.append(p[:-4])  # Since all pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
+# Since all local copies of pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
+# So we want a list of just those names stripped on extension
+listOfAllDirPages=[p[:-4] for p in list if p.endswith(".txt")]
 
-# Now download missing pages
+# Now figure out what pages are missing and download them.
 print("Downloading missing pages...")
 listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages]  # Create a list of pages which are in the wiki and not downloaded
 for pageName in listOfAllMissingPages:
     DownloadPage(pageName)
 
-# And delete local copies of pages which have disappared fromt he wiki
+# And delete local copies of pages which have disappeared from the wiki
 print("Removing deleted pages...")
 listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which are dowloaded but not in the wiki
 for pageName in listOfAllDeletedPages:
