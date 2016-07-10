@@ -23,7 +23,10 @@ def DownloadPage(saveName):
 
     # Download the page's data
     print("   Downloading: '"+saveName+"'")
-    pageData=client.ServerProxy(url).pages.get_one({"site" : "fancyclopedia", "page" : saveName.replace("_", ":", 1)})  # Convert back to the ":" form for downloading)
+    wikiName=saveName.replace("_", ":", 1)  # Convert back to the ":" form for downloading)
+    if wikiName == "con-": # "con" is a special case since that is a reserved word in Windoes and may not be used as a filename.  We use "con-" which is not a possible wiki name, for the local name .
+        wikiName="con"
+    pageData=client.ServerProxy(url).pages.get_one({"site" : "fancyclopedia", "page" : wikiName})
 
     # Get the updated time for the local version
     localUpdatedTime=None
@@ -86,6 +89,7 @@ os.chdir(cwd+'/site')
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
 listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
 listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # replace the first ":" with "_" in all page names
+listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiPages]   # Handle the "con" special case
 
 # Download the recently updated pages until we start finding pages we already have
 print("Downloading recently updated pages...")
