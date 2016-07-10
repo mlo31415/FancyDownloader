@@ -88,6 +88,7 @@ path=os.path.join(cwd, "..\\site")
 os.chdir(path)
 
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
+print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
 listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
 listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # replace the first ":" with "_" in all page names
 listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiPages]   # Handle the "con" special case
@@ -96,6 +97,7 @@ listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiP
 print("Downloading recently updated pages...")
 for pageName in listOfAllWikiPages:
     if not DownloadPage(pageName):  # Quit as soon as we start re-loading pages which have not been updated
+        print("      Page is up-to-date. Ending downloads")
         break
 
 # Get the page list from the local directory and use that to create lists of missing pages and deleted pages
@@ -108,12 +110,16 @@ listOfAllDirPages=[p[:-4] for p in list if p.endswith(".txt")]
 # Now figure out what pages are missing and download them.
 print("Downloading missing pages...")
 listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages]  # Create a list of pages which are in the wiki and not downloaded
+if len(listOfAllMissingPages) == 0:
+    print("   There are no missing pages")
 for pageName in listOfAllMissingPages:
     DownloadPage(pageName)
 
 # And delete local copies of pages which have disappeared from the wiki
 print("Removing deleted pages...")
 listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which are dowloaded but not in the wiki
+if len(listOfAllDeletedPages) == 0:
+    print("   There are no pages to delete")
 for pageName in listOfAllDeletedPages:
     print("   Removing: " + pageName)
     if os.path.isfile(pageName + ".xml"):
