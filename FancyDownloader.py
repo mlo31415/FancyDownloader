@@ -83,17 +83,6 @@ url=open("url.txt").read()
 cwd=os.getcwd()
 os.chdir(cwd+'/site')
 
-# Write a default position file if nothing exists
-try:
-    file=open("FancyDownloaderState.xml")
-    file.close()
-except:
-    root=ET.Element("root")
-    position=ET.SubElement(root, "Position")
-    position.text="FAPA"
-    tree=ET.ElementTree(root)
-    tree.write("FancyDownloaderState.xml")
-
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
 listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
 listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # replace the first ":" with "_" in all page names
