@@ -69,7 +69,7 @@ def DownloadPage(saveName):
     tree=ET.ElementTree(root)
     tree.write(saveName+".xml")
 
-
+    # We return True whenever we have just downloaded a page which was already up-to-date locally
     tWiki=DecodeDatetime(wikiUpdatedTime)
     tLocal=DecodeDatetime(localUpdatedTime)
 
@@ -84,7 +84,8 @@ url=open("url.txt").read()
 
 # Change the working directory to the destination of the downloaded wiki
 cwd=os.getcwd()
-os.chdir(cwd+'/site')
+path=os.path.join(cwd, "..\\site")
+os.chdir(path)
 
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
 listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
@@ -101,7 +102,7 @@ for pageName in listOfAllWikiPages:
 print("Creating list of local files")
 list = os.listdir(".")
 # Since all local copies of pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
-# So we want a list of just those names stripped on extension
+# So we want a list of just those names stripped of the extension
 listOfAllDirPages=[p[:-4] for p in list if p.endswith(".txt")]
 
 # Now figure out what pages are missing and download them.
