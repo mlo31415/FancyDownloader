@@ -45,29 +45,7 @@ def DownloadPage(localName):
             file.write(pageData["html"].encode("utf8"))
 
     # Write the rest of the page's data to <saveName>.xml
-    root=ET.Element("data")
-    for itemName in pageData:
-        if itemName == "content" or itemName == "html":   # We've already dealt with this
-            continue
-        if itemName == "tags":
-            tags=pageData["tags"]
-            if len(tags) > 0:
-                tagsElement=ET.SubElement(root, "tags")
-                for tag in tags:
-                    tagElement=ET.SubElement(tagsElement, "tag")
-                    tagElement.text=tag
-            continue
-        if itemName == "updated_at":    # Save the updated time
-            wikiUpdatedTime=pageData[itemName]
-        if pageData[itemName] != None and pageData[itemName] != "None":
-            element=ET.SubElement(root, itemName)
-            element.text=str(pageData[itemName])
-
-        # print(itemName + ": " + str(pageData[itemName]))
-
-    # And write it out.
-    tree=ET.ElementTree(root)
-    tree.write(localName + ".xml")
+    wikiUpdatedTime = SaveMetadata(localName, pageData)
 
     # Check for attached files
     fileNameList=client.ServerProxy(url).files.select({"site": "fancyclopedia", "page": wikiName})
@@ -76,11 +54,15 @@ def DownloadPage(localName):
             os.mkdir(localName)   # Create a directory for the files and metadata
             os.chmod(localName, 0o777)
         for fileName in fileNameList:
-            fileStuff = client.ServerProxy(url).files.get_one({"site": "fancyclopedia", "page": wikiName, "file": fileName})
+            fileStuff = client.ServerProxy(url).files.get_one({"site": "fancyclopedia", "page": wikiName, "file": fileName})    # Download the file's content and metadata
             path=os.path.join(os.getcwd(), localName, fileName)
             content=base64.b64decode(fileStuff["content"])
             with open(path, "wb+") as file:
-                file.write(content)
+                file.write(content)     # Save the content
+
+            # Now the metadata
+            del fileStuff["content"]    # We don't want to store the content in the metadata
+            SaveMetadata(os.path.join(localName, fileName), fileStuff)
 
     # We return True whenever we have just downloaded a page which was already up-to-date locally
     tWiki=DecodeDatetime(wikiUpdatedTime)
@@ -88,6 +70,31 @@ def DownloadPage(localName):
 
     return tWiki>tLocal
 
+
+def SaveMetadata(localName, pageData):
+    root = ET.Element("data")
+    for itemName in pageData:
+        if itemName == "content" or itemName == "html":  # We've already dealt with this
+            continue
+        if itemName == "tags":
+            tags = pageData["tags"]
+            if len(tags) > 0:
+                tagsElement = ET.SubElement(root, "tags")
+                for tag in tags:
+                    tagElement = ET.SubElement(tagsElement, "tag")
+                    tagElement.text = tag
+            continue
+        wikiUpdatedTime=None
+        if itemName == "updated_at":  # Save the updated time
+            wikiUpdatedTime = pageData[itemName]
+        if pageData[itemName] != None and pageData[itemName] != "None":
+            element = ET.SubElement(root, itemName)
+            element.text = str(pageData[itemName])
+
+    # And write it out.
+    tree = ET.ElementTree(root)
+    tree.write(localName + ".xml")
+    return wikiUpdatedTime
 
 # ---------------------------------------------
 # Main
