@@ -7,7 +7,7 @@ from tkinter import filedialog
 import xml.etree.ElementTree as ET
 import os
 import datetime
-import WikidotHelpers
+import base64
 
 def DecodeDatetime(dtstring):
     if dtstring == None:
@@ -19,29 +19,29 @@ def DecodeDatetime(dtstring):
 # Download a page from Wikidot.
 # The page's contents are stored in their files, the source in <saveName>.txt, the HTML in <saveName>..html, and all of the page information in <saveName>.xml
 # The return value is True when the Wikidot version of the page is newer than the local version, and False otherwise
-def DownloadPage(saveName):
+def DownloadPage(localName):
 
     # Download the page's data
-    print("   Downloading: '"+saveName+"'")
-    wikiName=saveName.replace("_", ":", 1)  # Convert back to the ":" form for downloading)
+    print("   Downloading: '" + localName + "'")
+    wikiName=localName.replace("_", ":", 1)  # Convert back to the ":" form for downloading)
     if wikiName == "con-": # "con" is a special case since that is a reserved word in Windoes and may not be used as a filename.  We use "con-" which is not a possible wiki name, for the local name .
         wikiName="con"
     pageData=client.ServerProxy(url).pages.get_one({"site" : "fancyclopedia", "page" : wikiName})
 
     # Get the updated time for the local version
     localUpdatedTime=None
-    if os.path.isfile(saveName+".xml"):
-        tree=ET.parse(saveName+".xml")
+    if os.path.isfile(localName+ ".xml"):
+        tree=ET.parse(localName + ".xml")
         doc=tree.getroot()
         localUpdatedTime=doc.find("updated_at").text
 
     # Write the page source to <saveName>.txt
     if pageData.get("content", None) != None:
-        with open(saveName + ".txt", "wb") as file:
+        with open(localName + ".txt", "wb") as file:
             file.write(pageData["content"].encode("utf8"))
 
     if pageData.get("html", None) != None:
-        with open(saveName + ".html", "wb") as file:
+        with open(localName + ".html", "wb") as file:
             file.write(pageData["html"].encode("utf8"))
 
     # Write the rest of the page's data to <saveName>.xml
@@ -67,7 +67,20 @@ def DownloadPage(saveName):
 
     # And write it out.
     tree=ET.ElementTree(root)
-    tree.write(saveName+".xml")
+    tree.write(localName + ".xml")
+
+    # Check for attached files
+    fileNameList=client.ServerProxy(url).files.select({"site": "fancyclopedia", "page": wikiName})
+    if len(fileNameList) > 0:
+        if not os.path.exists(localName):
+            os.mkdir(localName)   # Create a directory for the files and metadata
+            os.chmod(localName, 0o777)
+        for fileName in fileNameList:
+            fileStuff = client.ServerProxy(url).files.get_one({"site": "fancyclopedia", "page": wikiName, "file": fileName})
+            path=os.path.join(os.getcwd(), localName, fileName)
+            content=base64.b64decode(fileStuff["content"])
+            with open(path, "wb+") as file:
+                file.write(content)
 
     # We return True whenever we have just downloaded a page which was already up-to-date locally
     tWiki=DecodeDatetime(wikiUpdatedTime)
@@ -86,6 +99,7 @@ url=open("url.txt").read()
 cwd=os.getcwd()
 path=os.path.join(cwd, "..\\site")
 os.chdir(path)
+os.chmod(path, 0o777)
 
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
 print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
