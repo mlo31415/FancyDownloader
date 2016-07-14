@@ -73,6 +73,7 @@ def DownloadPage(localName):
 
 def SaveMetadata(localName, pageData):
     root = ET.Element("data")
+    wikiUpdatedTime = None
     for itemName in pageData:
         if itemName == "content" or itemName == "html":  # We've already dealt with this
             continue
@@ -84,7 +85,6 @@ def SaveMetadata(localName, pageData):
                     tagElement = ET.SubElement(tagsElement, "tag")
                     tagElement.text = tag
             continue
-        wikiUpdatedTime=None
         if itemName == "updated_at":  # Save the updated time
             wikiUpdatedTime = pageData[itemName]
         if pageData[itemName] != None and pageData[itemName] != "None":
