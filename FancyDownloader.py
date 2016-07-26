@@ -1,9 +1,27 @@
-#!/usr/bin/python
+# Program to download an entire wiki (except for history) from Wikidot and then to keep it synchronized.
+# The wiki is downloaded to a directory.  Each wiki page generates two files and possibly a directory:
+#     <page>.txt containing the source of the page
+#     <page>.xml containing the metadata of the page
+#     <page> a directory containing the attached files (created only if there are attached files)
 
-import sys
-from optparse import OptionParser
+# The basic scheme is to create a list of all pages in the wiki sorted from most-recently-updated to least-recently-updated.
+# The downloader then walks the list, downloading new copies of each page which is newer on the wiki than in the local copy.
+#    It stops when it finds a page where the local copy is up-to-date
+#          (Note that this leave it vulnerable to a case where the downloader fails partway through and updates some pages and not others.
+#          The next time it is run, if any pages have been updated in the mean time, the massed pages won;t be noticed.
+#          Since the alternative is to check every page every time, and since this was written to deal with a wiki with >20K pages, it is an accepted issue to be dea;lt with by hand.)
+#    The next step is to compare the list of all local .txt files with the list of all pages, and to download any which are missing.
+#          (Note that this does not deal with deleted .xml files or deleted attached files.  This fairly cheap to check, so it might be a useful enhancement.)
+#    The final step is to look for local .txt files which are not on the wiki.  These will typically be files which have been deleted on the wiki.  They are deleted locally.
+
+# The wiki to be synched and the credentials are stoed in a file url.txt.  It contains a single line of text of the form:
+#      https://fancyclopedia:rdS...80g@www.wikidot.com/xml-rpc-api.php
+# where 'fancyclopedia' is the wiki and 'rdS...80g' is the access key
+
+# The synched wiki will be put into a directory 'site' one level up from the Python code.
+
+
 from xmlrpc import client
-from tkinter import filedialog
 import xml.etree.ElementTree as ET
 import os
 import datetime
@@ -137,6 +155,7 @@ for pageName in listOfAllMissingPages:
     DownloadPage(pageName)
 
 # And delete local copies of pages which have disappeared from the wiki
+# Note that we don't detect and delete local copies of attached files which have been removed from the wiki.
 print("Removing deleted pages...")
 listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which are dowloaded but not in the wiki
 if len(listOfAllDeletedPages) == 0:
