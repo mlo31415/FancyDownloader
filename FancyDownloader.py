@@ -20,6 +20,8 @@
 
 # The synched wiki will be put into a directory 'site' one level up from the Python code.
 
+# It was developed in PyCharm2016
+
 
 from xmlrpc import client
 import xml.etree.ElementTree as ET
