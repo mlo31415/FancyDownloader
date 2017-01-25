@@ -164,9 +164,10 @@ os.chdir(path)
 os.chmod(path, 0o777)
 
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
+# (We're using composition, here.)
 print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
 listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
-listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # ':' is used for non-standard namespaces. Replace the first ":" with "_" in all page names because ':' is invalid in Windows file names
+listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # ':' is used for non-standard namespaces on wiki. Replace the first ":" with "_" in all page names because ':' is invalid in Windows file names
 listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiPages]   # Handle the "con" special case
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
@@ -175,7 +176,7 @@ listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiP
 # stoppingCriterion:
 #   >0 --> Run until we have encountered stoppingCriterion pages that don't need updates
 #   =0 --> Run through all pages
-# This is used to handle cases where the process had been interrupted before updating all changed pages.
+# This is used to handle cases where the downloading and comparison process has been interrupted before updating all changed pages.
 # In that case there is a wodge of up-to-date recently-changed pages before the pages that were past the interruption
 stoppingCriterion=100
 print("Downloading recently updated pages...")
@@ -203,9 +204,9 @@ for pageName in listOfAllMissingPages:
     DownloadPage(pageName, True)
 
 # And delete local copies of pages which have disappeared from the wiki
-# Note that we don't detect and delete local copies of attached files which have been removed from the wiki.
+# Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
 print("Removing deleted pages...")
-listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which are downloaded but not in the wiki
+listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which exist locally, but not in the wiki
 if len(listOfAllDeletedPages) == 0:
     print("   There are no pages to delete")
 for pageName in listOfAllDeletedPages:
