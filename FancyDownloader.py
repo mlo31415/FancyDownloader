@@ -174,10 +174,11 @@ listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiP
 #
 # stoppingCriterion controls how long the update runs
 # stoppingCriterion:
-#   >0 --> Run until we have encountered stoppingCriterion pages that don't need updates
-#   =0 --> Run through all pages
+#   >0 --> Run until we have encountered stoppingCriterion consecutive pages that don't need updates
+#   =0 --> Run through all pages (this is slow and resource-intensive)
 # This is used to handle cases where the downloading and comparison process has been interrupted before updating all changed pages.
-# In that case there is a wodge of up-to-date recently-changed pages before the pages that were past the interruption
+# In that case there will be a wodge of up-to-date recently-changed pages before the pages that were past the interruption.
+# StoppingCriterion needs to be big enough to get past that wodge.
 stoppingCriterion=100
 print("Downloading recently updated pages...")
 countUpToDatePages=0
