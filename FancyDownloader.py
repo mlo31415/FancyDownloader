@@ -182,10 +182,14 @@ listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiP
 stoppingCriterion=100
 print("Downloading recently updated pages...")
 countUpToDatePages=0
+countDownloadedPages=0
 for pageName in listOfAllWikiPages:
-    if not DownloadPage(pageName, True):
+    if DownloadPage(pageName, True):
+        countDownloadedPages+=1
+    else:
         countUpToDatePages+=1
         if stoppingCriterion > 0 and countUpToDatePages > stoppingCriterion:
+            print("      "+str(countDownloadedPages)+" pages downloaded")
             print("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
             break
 
