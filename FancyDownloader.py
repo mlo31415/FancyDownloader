@@ -177,8 +177,8 @@ def DownloadPage(url, pageName, skipIfNotNewer):
                     urllib.request.urlretrieve("http://fancyclopedia.org"+url, os.path.join(pageName, linktext))
                 print("      "+str(len(els)-1), " files downloaded.")
             except:
-               k=0
-            path=os.path.join(os.getcwd(), pageName, fileName)
+               pass     # Ignore exceptions
+        browser.close()
 
     return True
 
