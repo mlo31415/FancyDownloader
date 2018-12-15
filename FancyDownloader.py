@@ -230,6 +230,19 @@ os.chdir(path)
 os.chmod(path, 0o777)
 del cwd, path
 
+# Look for a file called "override.txt" -- if it exists, load those pages and do nothing else.
+# Override.txt contains a list of page names, one name per line.
+if os.path.exists("../FancyDownloader/override.txt"):
+    with open("../FancyDownloader/override.txt", "r") as file:
+        override=file.readlines()
+    override=[x.strip() for x in override]  # Remove trailing '\n'
+    print("Downloading override pages...")
+    countDownloadedPages=0
+    for pageName in override:
+        if DownloadPage(url, pageName, False):
+            countDownloadedPages+=1
+    exit()
+
 # Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
 # (We're using composition, here.)
 print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
