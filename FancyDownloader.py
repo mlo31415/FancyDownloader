@@ -161,23 +161,24 @@ def DownloadPage(url, pageName, skipIfNotNewer):
     if len(downloadFailures) > 0:
         # Instantiate the web browser Selenium will use. For now, we're opening it anew each time.
         browser=webdriver.Firefox()
-        for fileName in downloadFailures:
-            # Open the Fancy 3 page in the browser
-            browser.get("http://fancyclopedia.org/"+pageName+"/noredirect/t")
-            elem=browser.find_element_by_id('files-button')
-            elem.send_keys(Keys.RETURN)
-            time.sleep(0.7)  # Just-in-case
+        # Open the Fancy 3 page in the browser
+        browser.get("http://fancyclopedia.org/"+pageName+"/noredirect/t")
+        elem=browser.find_element_by_id('files-button')
+        elem.send_keys(Keys.RETURN)
+        time.sleep(0.7)  # Just-in-case
+        # wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'page-files')))
 
-            # wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'page-files')))
-            try:
-                els=browser.find_element_by_class_name("page-files").find_elements_by_tag_name("tr")
-                for i in range(1, len(els)):
-                    h=els[i].get_attribute("outerHTML")
-                    url, linktext=GetHrefAndTextFromString(h)
-                    urllib.request.urlretrieve("http://fancyclopedia.org"+url, os.path.join(pageName, linktext))
-                print("      "+str(len(els)-1), " files downloaded.")
-            except:
-               pass     # Ignore exceptions
+        try:
+            els=browser.find_element_by_class_name("page-files").find_elements_by_tag_name("tr")
+        except:
+            print('******find_element_by_class_name("page-files").find_elements_by_tag_name("tr") failed')
+
+        for i in range(1, len(els)):
+            h=els[i].get_attribute("outerHTML")
+            url, linktext=GetHrefAndTextFromString(h)
+            if linktext in downloadFailures:
+                urllib.request.urlretrieve("http://fancyclopedia.org"+url, os.path.join(pageName, linktext))
+                print("     downloading big file "+linktext)
         browser.close()
 
     return True
@@ -236,6 +237,13 @@ if os.path.exists("../FancyDownloader/override.txt"):
     with open("../FancyDownloader/override.txt", "r") as file:
         override=file.readlines()
     override=[x.strip() for x in override]  # Remove trailing '\n'
+    # Remove duplicates;
+    nodupes=[]
+    for x in override:
+        if x not in nodupes:
+            nodupes.append(x)
+    override=nodupes
+    del nodupes, x
     print("Downloading override pages...")
     countDownloadedPages=0
     for pageName in override:
