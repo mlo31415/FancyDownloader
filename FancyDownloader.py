@@ -1,3 +1,4 @@
+#
 # Program to download an entire wiki (except for history) from Wikidot and then to keep it synchronized.
 # The wiki is downloaded to a directory.  Each wiki page generates two files and possibly a directory:
 #     <page>.txt containing the source of the page
