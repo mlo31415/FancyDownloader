@@ -24,6 +24,8 @@
 # It was developed in PyCharm2016
 
 
+import pywikibot
+from datetime import timedelta
 from xmlrpc import client
 import xml.etree.ElementTree as ET
 import os
@@ -222,8 +224,10 @@ def GetPageWikiTime(localName, pageData):
 # ---------------------------------------------
 # Main
 
-# Get the magic URL for api access
-url=open("url.txt").read()
+
+# This opens the site specified by user-config.py with the credential in user-password.py
+fancy=pywikibot.Site()
+
 
 # Change the working directory to the destination of the downloaded wiki
 cwd=os.getcwd()
@@ -248,16 +252,37 @@ if os.path.exists("../FancyDownloader/override.txt"):
     print("Downloading override pages...")
     countDownloadedPages=0
     for pageName in override:
-        if DownloadPage(url, pageName, False):
+        if DownloadPage(fancy, pageName, False):
             countDownloadedPages+=1
     exit()
 
-# Now, get list of recently modified pages.  It will be ordered from most-recently-updated to least.
-# (We're using composition, here.)
+# Now, get list of pages sorted by date of last modification
+# The strategy will be to first get a list of *all* updates sorted by date of last modification
+# We'll then get rid of all but the most recent modification of each page.
+# Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
-listOfAllWikiPages=client.ServerProxy(url).pages.select({"site" : "fancyclopedia", "order": "updated_at desc"})
-listOfAllWikiPages=[name.replace(":", "_", 1) for name in listOfAllWikiPages]   # ':' is used for non-standard namespaces on wiki. Replace the first ":" with "_" in all page names because ':' is invalid in Windows file names
-listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiPages]   # Handle the "con" special case
+current_time = fancy.server_time()
+iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 60 years...
+listOfAllWikiPages=[]
+for v in iterator:
+    listOfAllWikiPages.append(v)
+# Now get rid of the older instances of each page.
+# Use a dictionary which only contains the latest version
+temp={}
+for p in listOfAllWikiPages:
+    if p["title"] in temp.keys():
+        if p["timestamp"] > temp[p["title"]]["timestamp"]:
+            temp[p["title"]]=p
+    else:
+        temp[p["title"]]=p
+
+# No recreate the listOfAllWikiPages from the de-duped dictionary and then sort it
+listOfAllWikiPages=list(temp.values())
+def sorttime(page):
+    return page["timestamp"]
+listOfAllWikiPages=sorted(listOfAllWikiPages, key=sorttime, reverse=True)
+# TODO: Do we need to fix con here?  (Probably not.)
+# listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiPages]   # Handle the "con" special case
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
