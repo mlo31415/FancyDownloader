@@ -21,22 +21,12 @@
 
 # The synched wiki will be put into a directory 'site' one level up from the Python code.
 
-# It was developed in PyCharm2016
-
-
 import pywikibot
 from datetime import timedelta
-from xmlrpc import client
 import xml.etree.ElementTree as ET
 import os
-import sys
 import datetime
-import base64
-import time
-import urllib.request
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
+
 
 
 #-----------------------------------------
@@ -208,13 +198,12 @@ def GetPageWikiTime(localName, pageData):
             return pageData[itemName]
 
 
-# ---------------------------------------------
+# ------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------
 # Main
-
 
 # This opens the site specified by user-config.py with the credential in user-password.py
 fancy=pywikibot.Site()
-
 
 # Change the working directory to the destination of the downloaded wiki
 cwd=os.getcwd()
