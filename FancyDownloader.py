@@ -28,12 +28,18 @@ import os
 import datetime
 
 
+#-----------------------------------------
+# Convert page names to legal Windows filename
+def PageNameToFilename(pname: str):
+    s=str.replace(";", ";semi;").replace("*", ";star;")
+    return s
+
 
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
 # Input is of the form <b stuff>stuff</b>stuff
 # Return the contents of the first pair of brackets found, the remainder of the input string up to </b>, and anything leftover afterwards (the three stuffs)
-def FindBracketedText(s, b):
+def FindBracketedText(s: str, b: str):
     strlower=s.lower()
     # Find <b ...>
     l1=strlower.find("<"+b.lower()) # Look for <b
@@ -56,7 +62,7 @@ def FindBracketedText(s, b):
 # Function to pull an href and accompanying text from a Tag
 # The structure is "<a href='URL'>LINKTEXT</a>
 # We want to extract the URL and LINKTEXT
-def GetHrefAndTextFromString(s):
+def GetHrefAndTextFromString(s: str):
     s=FindBracketedText(s, "a")
     if s[0] == "":
         return None, None
@@ -64,7 +70,7 @@ def GetHrefAndTextFromString(s):
     # Remove the 'href="' from trailing '"' from the string
     return s[0][6:-1], s[1]
 
-def DecodeDatetime(dtstring):
+def DecodeDatetime(dtstring: str):
     if dtstring is None:
         return datetime.datetime(1950, 1, 1, 1, 1, 1)    # If there's no datetime, return something early
     if not dtstring.endswith("+00:00"):
@@ -75,7 +81,7 @@ def DecodeDatetime(dtstring):
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all of the page meta information in <saveName>.xml
 # Setting updateAll to True allows a forced downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
-def DownloadPage(fancy, pageName, pageData, updateAll):
+def DownloadPage(fancy, pageName: str, pageData: dict, updateAll: bool):
     #time.sleep(0.05)    # Wikidot has a limit on the number of RPC calls/second.  This is to throttle the download to stay on the safe side.
 
     page=pywikibot.Page(fancy, pageName)
@@ -105,21 +111,17 @@ def DownloadPage(fancy, pageName, pageData, updateAll):
 
     # Write the page source to <pageName>.txt
     text=page.text
+    fname=PageNameToFilename(pageName)+".txt"
     if text is not None:
-        with open(pageName+".txt", "wb") as file:
+        with open(fname, "wb") as file:
             file.write(text.encode("utf8"))
     else:
         # If there's no text, delete any existing txt file
-        if os.path.exists(pageName+".txt"):
-            os.remove(pageName+".txt")
+        if os.path.exists(fname):
+            os.remove(fname)
 
-    # Write the page's rendered HTML to <pageName>.html
-    # if pageData.get("html", None) is not None:
-    #     with open(pageName+".html", "wb") as file:
-    #         file.write(pageData["html"].encode("utf8"))
-
-    # Write the rest of the page's data to <pageName>.xml
-    SaveMetadata(pageName, page)
+    # Write the page's metadata to <pageName>.xml
+    SaveMetadata(fname, page)
 
     # # Check for attached files
     # # If any exist, save them in a directory named <pageName>
@@ -176,7 +178,7 @@ def DownloadPage(fancy, pageName, pageData, updateAll):
     return True
 
 # Save the wiki page's metadata to an xml file
-def SaveMetadata(localName, pageData):
+def SaveMetadata(localName: str, pageData: dict):
     root = ET.Element("data")
     wikiUpdatedTime = None
 
