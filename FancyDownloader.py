@@ -33,6 +33,10 @@ import datetime
 def PageNameToFilename(pname: str):
     return pname.replace(";", ";semi;").replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
 
+def FileNameToPageName(fname: str):
+    return fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":").replace(";semi;", ";")
+
+
 
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
@@ -80,23 +84,21 @@ def DecodeDatetime(dtstring: str):
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all of the page meta information in <saveName>.xml
 # Setting updateAll to True allows a forced downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
-def DownloadPage(fancy, pageName: str, pageData: dict, updateAll: bool):
+def DownloadPage(fancy, pageName: str, pageData: dict, updateAll: bool=False):
     #time.sleep(0.05)    # Wikidot has a limit on the number of RPC calls/second.  This is to throttle the download to stay on the safe side.
 
-    page=pywikibot.Page(fancy, pageName)
-    if page.text is None or len(page.text) == 0:
-        return
+    pname=PageNameToFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
 
-    pageName=PageNameToFilename(pageName)
-
-    # NOTE: This relies on the update times stored in the local file's xml and in the wiki page's updated_at metadata
-    # It will not detect incompletely downloaded pages if the xml file exists
-    # If we haven't selected updateAll, then check the timestamps and only update if the page on the server is newer than the local copy
+    # If we set updateAll to True, then we skip the date checks and always do the update
     if not updateAll:
+        # NOTE: This relies on the update times stored in the local file's xml and in the last update time data from pageData
+        # It will not detect incompletely downloaded pages if the xml file exists
+        # Check the timestamps and only update if the page on the server is newer than the local copy
+
         # Get the updated time for the local version
-        if os.path.isfile(pageName+".xml"):
+        if os.path.isfile(pname+".xml"):
             # If no xml file exists, we want to do the download, since the local copy is missing or incomplete
-            tree=ET.parse(pageName+".xml")
+            tree=ET.parse(pname+".xml")
             doc=tree.getroot()
             localTimestamp=doc.find("timestamp").text
 
@@ -108,21 +110,27 @@ def DownloadPage(fancy, pageName: str, pageData: dict, updateAll: bool):
                 return False
 
     # OK, we're going to download this one
-    print("   Updating: '"+pageName+"'")
+    if pageName == pname:
+        print("   Updating: '"+pageName+"'")
+    else:
+        print("   Updating: '"+pageName+"' as '"+pname+"'")
+
+    page=pywikibot.Page(fancy, pageName)
+    if page.text is None or len(page.text) == 0:
+        return
 
     # Write the page source to <pageName>.txt
     text=page.text
-    fname=PageNameToFilename(pageName)+".txt"
     if text is not None:
-        with open(fname, "wb") as file:
+        with open(pname+".txt", "wb") as file:
             file.write(text.encode("utf8"))
     else:
         # If there's no text, delete any existing txt file
-        if os.path.exists(fname):
-            os.remove(fname)
+        if os.path.exists(pname+".txt"):
+            os.remove(pname+".txt")
 
     # Write the page's metadata to <pageName>.xml
-    SaveMetadata(fname, page)
+    SaveMetadata(pname+".xml", page)
 
     # # Check for attached files
     # # If any exist, save them in a directory named <pageName>
@@ -231,7 +239,7 @@ del cwd, path
 #     print("Downloading override pages...")
 #     countDownloadedPages=0
 #     for pageName in override:
-#         if DownloadPage(fancy, pageName, True):
+#         if DownloadPage(fancy, pageName, updateAll=True):
 #             countDownloadedPages+=1
 #     exit()
 
@@ -239,6 +247,7 @@ del cwd, path
 # The strategy will be to first get a list of *all* updates sorted by date of last modification
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
+# Note also that this list will contain pages that have been *deleted*
 print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
 iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 60 years...
@@ -277,7 +286,7 @@ countUpToDatePages=0
 countDownloadedPages=0
 for page in listOfAllWikiPages:
     pageName=page["title"]
-    if DownloadPage(fancy, pageName, page, False):
+    if DownloadPage(fancy, pageName, page):
         countDownloadedPages+=1
     else:
         countUpToDatePages+=1
@@ -290,19 +299,24 @@ for page in listOfAllWikiPages:
 print("Creating list of local files")
 # Since all local copies of pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
 # So we want a list of just those names stripped of the extension
+# We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
 listOfAllDirPages=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
+listOfAllWikiPages=[FileNameToPageName(p) for p in listOfAllWikiPages]
 
 # Now figure out what pages are missing and download them.
 print("Downloading missing pages...")
 listOfAllMissingPages = [val for val in listOfAllWikiPages if val not in listOfAllDirPages]  # Create a list of pages which are in the wiki and not downloaded
 if len(listOfAllMissingPages) == 0:
     print("   There are no missing pages")
-for pageName in listOfAllMissingPages:
-    DownloadPage(fancy, pageName, False)
+else:
+    for page in listOfAllMissingPages:
+        pageName=page["title"]
+        DownloadPage(fancy, pageName, page)
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
 print("Removing deleted pages...")
+stop
 listOfAllDeletedPages = [val for val in listOfAllDirPages if val not in listOfAllWikiPages]  # Create a list of pages which exist locally, but not in the wiki
 if len(listOfAllDeletedPages) == 0:
     print("   There are no pages to delete")
