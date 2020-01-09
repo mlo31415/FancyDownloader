@@ -31,8 +31,7 @@ import datetime
 #-----------------------------------------
 # Convert page names to legal Windows filename
 def PageNameToFilename(pname: str):
-    s=str.replace(";", ";semi;").replace("*", ";star;")
-    return s
+    return pname.replace(";", ";semi;").replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
 
 
 #-----------------------------------------
@@ -87,6 +86,8 @@ def DownloadPage(fancy, pageName: str, pageData: dict, updateAll: bool):
     page=pywikibot.Page(fancy, pageName)
     if page.text is None or len(page.text) == 0:
         return
+
+    pageName=PageNameToFilename(pageName)
 
     # NOTE: This relies on the update times stored in the local file's xml and in the wiki page's updated_at metadata
     # It will not detect incompletely downloaded pages if the xml file exists
@@ -258,9 +259,8 @@ for p in listOfAllWikiPages:
 listOfAllWikiPages=list(temp.values())
 def sorttime(page):
     return page["timestamp"]
-listOfAllWikiPages=sorted(listOfAllWikiPages, key=sorttime, reverse=True)
+listOfAllWikiPages=sorted(listOfAllWikiPages, key=sorttime, reverse=False)
 # TODO: Do we need to fix con here?  (Probably not.)
-# listOfAllWikiPages=[name if name != "con" else "con-" for name in listOfAllWikiPages]   # Handle the "con" special case
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
