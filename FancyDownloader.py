@@ -30,11 +30,13 @@ import datetime
 
 #-----------------------------------------
 # Convert page names to legal Windows filename
+# The characters illegal in Windows filenams will be replaced by ";xxx;" where xxx is a plausible name for the illegal character.
 def PageNameToFilename(pname: str):
-    return pname.replace(";", ";semi;").replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
+    return pname.replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
 
 def FileNameToPageName(fname: str):
-    return fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":").replace(";semi;", ";")
+    return fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":")
+
 
 
 
@@ -117,7 +119,7 @@ def DownloadPage(fancy, pageName: str, pageData: dict):
 
     page=pywikibot.Page(fancy, pageName)
     if page.text is None or len(page.text) == 0:
-        return
+        return False
 
     # Write the page source to <pageName>.txt
     text=page.text
@@ -310,29 +312,40 @@ setofAllWikiPnames=set(listofAllWikiPnames)
 setofAllDirPnames=set([FileNameToPageName(val) for val in listOfAllDirFnames])
 listofMissingPnames=list(setofAllWikiPnames-setofAllDirPnames)
 countMissingPages=0
+countStillMissingPages=0
 if len(listofMissingPnames) == 0:
     print("   There are no missing pages")
 else:
     for pname in listofMissingPnames:
-        DownloadPage(fancy, pname, None)
-        countMissingPages+=1
-print("   "+str(countMissingPages)+" missing pages downloaded")
+        if DownloadPage(fancy, pname, None):
+            countMissingPages+=1
+        else:
+            countStillMissingPages+=1
+print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
 print("Removing deleted pages...")
 listofDeletedPnames=list(setofAllDirPnames-setofAllWikiPnames)
 countOfDeletedPages=0
+countOfUndeletedPages=0
 if len(listofDeletedPnames) == 0:
     print("   There are no pages to delete")
 for pname in listofDeletedPnames:
     print("   Removing: " + pname)
+    deleted=False
     if os.path.isfile(pname + ".xml"):
         os.remove(pname + ".xml")
+        deleted=True
     if os.path.isfile(pname + ".txt"):
         os.remove(pname + ".txt")
-    countOfDeletedPages+=1
-print("   "+str(countOfDeletedPages)+" deleted pages removed")
+        deleted=True
+    if deleted:
+        countOfDeletedPages+=1
+    else:
+        countOfUndeletedPages+=1
+
+print("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+ "could not be found")
 
 print("Done")
 
