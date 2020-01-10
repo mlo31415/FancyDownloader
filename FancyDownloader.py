@@ -201,7 +201,7 @@ def SaveMetadata(localName: str, pageData):
 
     # And write the xml out to file <localName>.xml.
     tree = ET.ElementTree(root)
-    tree.write(localName + ".xml")
+    tree.write(localName)
     return wikiUpdatedTime
 
 # Get the wiki page's update time from the its metadata
@@ -291,8 +291,15 @@ print("Creating list of local files")
 # Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
 # So we want a list of just those names stripped of the extension
 # We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
-listOfAllDirFnames=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
-listOfAllDirFnames=[FileNameToPageName(p) for p in listOfAllDirFnames]
+listofAllFnamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
+listofAllFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
+
+# Create a list of all file names that have *both* .txt and .xml files
+setofAllFnamesTxt=set(listofAllFnamesTxt)
+setofAllFnamesXml=set(listofAllFnamesXml)
+listofAllDirFnames=list(setofAllFnamesTxt & setofAllFnamesXml)  # Intersection of set of names of xml files and set of names of txt files
+
+listOfAllDirFnames=[FileNameToPageName(p) for p in listofAllDirFnames]
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
