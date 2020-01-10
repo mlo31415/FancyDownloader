@@ -298,6 +298,7 @@ for page in listOfAllWikiPages:
             break
 
 # Get the page list from the local directory and use that to create lists of missing pages and deleted pages
+print("\n")
 print("Creating list of local files")
 # Since all local copies of pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
 # So we want a list of just those names stripped of the extension
@@ -322,6 +323,7 @@ else:
         else:
             countStillMissingPages+=1
 print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
+print("\n")
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
@@ -347,5 +349,6 @@ for pname in listofDeletedPnames:
 
 print("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+ "could not be found")
 
+print("\n")
 print("Done")
 
