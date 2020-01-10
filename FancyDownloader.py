@@ -271,7 +271,7 @@ listOfAllWikiPages=list(temp.values())
 def sorttime(page):
     return page["timestamp"]
 listOfAllWikiPages=sorted(listOfAllWikiPages, key=sorttime, reverse=False)
-# TODO: Do we need to fix con here?  (Probably not.)
+
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
@@ -347,7 +347,7 @@ for pname in listofDeletedPnames:
     else:
         countOfUndeletedPages+=1
 
-print("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+ "could not be found")
+print("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+" could not be found")
 
 print("\n")
 print("Done")
