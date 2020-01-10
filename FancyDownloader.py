@@ -211,11 +211,11 @@ def GetPageWikiTime(localName, pageData):
             return pageData[itemName]
 
 
-# ------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------
-# Main
+# ############################################################################################
+# ###################################  Main  #################################################
+# ############################################################################################
 
-# This opens the site specified by user-config.py with the credential in user-password.py
+# This opens the site specified by user-config.py with the credential in user-password.py.
 fancy=pywikibot.Site()
 
 # Change the working directory to the destination of the downloaded wiki
@@ -245,33 +245,61 @@ del cwd, path
 #             countDownloadedPages+=1
 #     exit()
 
-# Now, get list of pages sorted by date of last modification
+# Get list of pages on the wiki
 # The strategy will be to first get a list of *all* updates sorted by date of last modification
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
-# Note also that this list will contain pages that have been *deleted*
+# Note also that this list will contain pages that have been *deleted* on the wiki
 print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
 iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 60 years...
-listOfAllWikiPages=[]
+allWikiPages=[]
 for v in iterator:
-    listOfAllWikiPages.append(v)
-# Now get rid of the older instances of each page.
+    allWikiPages.append(v)
+
+# Get rid of the older instances of each page.
 # Use a dictionary which only contains the latest version
 temp={}
-for p in listOfAllWikiPages:
+for p in allWikiPages:
     if p["title"] in temp.keys():
         if p["timestamp"] > temp[p["title"]]["timestamp"]:
             temp[p["title"]]=p
     else:
         temp[p["title"]]=p
 
-# No recreate the listOfAllWikiPages from the de-duped dictionary and then sort it
-listOfAllWikiPages=list(temp.values())
+# Recreate the listOfAllWikiPages from the de-duped dictionary
+allWikiPages=list(temp.values())
+
+# Some members of this list are wiki pages referred to in the wiki which have not been created.
+listofEmptyPages=[val for val in allWikiPages if val["newlen"] == 0]
+
+# Sort the list of all pages by timestamp
 def sorttime(page):
     return page["timestamp"]
-listOfAllWikiPages=sorted(listOfAllWikiPages, key=sorttime, reverse=False)
+allWikiPages=sorted(allWikiPages, key=sorttime, reverse=False)
 
+# This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
+listofAllUncreatedPnames=[val["title"] for val in allWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
+listofAllWikiPnames=[val["title"] for val in allWikiPages]
+setofAllExistingWikiPnames=set(listofAllWikiPnames)-set(listofAllUncreatedPnames)
+listofAllExistingWikiPnames=list(setofAllExistingWikiPnames)
+
+
+# Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
+print("\n")
+print("Creating list of local files")
+# Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
+# So we want a list of just those names stripped of the extension
+# We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
+listOfAllDirFnames=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
+listOfAllDirFnames=[FileNameToPageName(p) for p in listOfAllDirFnames]
+
+# Figure out what pages are missing from the local copy and download them.
+# We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
+setofAllDirPnames=set([FileNameToPageName(val) for val in listOfAllDirFnames])
+listofMissingPnames=list(setofAllExistingWikiPnames-setofAllDirPnames)
+
+listofDeletedPnames=list(setofAllDirPnames-setofAllExistingWikiPnames)
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
@@ -286,32 +314,19 @@ stoppingCriterion=100
 print("Downloading recently updated pages...")
 countUpToDatePages=0
 countDownloadedPages=0
-for page in listOfAllWikiPages:
+for page in allWikiPages:
     pageName=page["title"]
-    if DownloadPage(fancy, pageName, page):
-        countDownloadedPages+=1
-    else:
-        countUpToDatePages+=1
-        if stoppingCriterion > 0 and countUpToDatePages > stoppingCriterion:
-            print("      "+str(countDownloadedPages)+" pages downloaded")
-            print("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
-            break
+    if pageName in setofAllExistingWikiPnames:
+        if DownloadPage(fancy, pageName, page):
+            countDownloadedPages+=1
+        else:
+            countUpToDatePages+=1
+            if stoppingCriterion > 0 and countUpToDatePages > stoppingCriterion:
+                print("      "+str(countDownloadedPages)+" pages downloaded")
+                print("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
+                break
 
-# Get the page list from the local directory and use that to create lists of missing pages and deleted pages
-print("\n")
-print("Creating list of local files")
-# Since all local copies of pages have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
-# So we want a list of just those names stripped of the extension
-# We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
-listOfAllDirFnames=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
-listOfAllDirFnames=[FileNameToPageName(p) for p in listOfAllDirFnames]
-
-# Now figure out what pages are missing and download them.
 print("Downloading missing pages...")
-listofAllWikiPnames=[val["title"] for val in listOfAllWikiPages]
-setofAllWikiPnames=set(listofAllWikiPnames)
-setofAllDirPnames=set([FileNameToPageName(val) for val in listOfAllDirFnames])
-listofMissingPnames=list(setofAllWikiPnames-setofAllDirPnames)
 countMissingPages=0
 countStillMissingPages=0
 if len(listofMissingPnames) == 0:
@@ -328,7 +343,6 @@ print("\n")
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
 print("Removing deleted pages...")
-listofDeletedPnames=list(setofAllDirPnames-setofAllWikiPnames)
 countOfDeletedPages=0
 countOfUndeletedPages=0
 if len(listofDeletedPnames) == 0:
