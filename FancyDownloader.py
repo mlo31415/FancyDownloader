@@ -32,10 +32,76 @@ import datetime
 # Convert page names to legal Windows filename
 # The characters illegal in Windows filenams will be replaced by ";xxx;" where xxx is a plausible name for the illegal character.
 def PageNameToFilename(pname: str):
-    return pname.replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
+    # "Con" is a special case because it's a reserved Windows (DOS, actually) filename
+    if pname.lower() == "con":
+        pname=";"+pname+";" # And now handle it normally
+
+    # There's a complicated algorithm for handling uc/lc issues
+    # Letters that are the wrong case are followed by a ^^
+    # The right case is the 1st character uc and the first character after a space uc, all others lc.
+    s=""
+    i=0
+    while i < len(pname):
+        if i == 0:  # Leading char defaults to upper
+            if pname[0].isupper() or not pname[0].isalpha():
+                s=pname[0]
+            else:
+                s=pname[0].upper()+"^^"
+            i+=1
+        elif not pname[i].isalpha():    # Nonalpha characters pass through unchanged
+            s+=pname[i]
+            i+=1
+        elif pname[i-1] == " ":      # First alpha char after a space defaults to upper
+            # pname[i] is alpha
+            if pname[i].isupper():
+                s+=pname[i]         # Upper case in this position passes through
+            else:
+                s+=pname[i].upper()+"^^"    # Lower case gets a special flag
+            i+=1
+        else:    # All other chars defaults to lower
+            # pname[i] is alpha
+            if pname[i].islower():
+                s+=pname[i]     # Lower passes through
+            else:
+                s+=pname[i].lower()+"^^"    # Upper gets converted to lower and flagged
+            i+=1
+    # Now handle special characters
+    return s.replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
 
 def FileNameToPageName(fname: str):
-    return fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":")
+    # First undo the handling of special characters
+    fname=fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":")
+
+    s=""
+    i=0
+    while i < len(fname):
+        if fname[i].isalpha() and len(fname) > i+2:     # Is it a letter which could be flagged?
+            if fname[i+1] == "^" and fname[i+2] == "^": # Is it flagged?
+                if i == 0:                              # 1st letter is flagged: 'X^^' --> 'x'
+                    s+=fname[0].lower()
+                    i+=3
+                elif fname[i-1] == " ":                 # Flagged letter following space: ' x^^' --> ' x'
+                    s+=fname[i].lower()
+                    i+=3
+                else:                                   # flagged letter not following space: 'ax^^' --> 'aX'
+                    s+=fname[i].upper()
+                    i+=3
+            else:                                       # It is unflagged
+                if fname[i-1] == " ":                   # Is it an unflagged letter following space? ' x' --> ' X'
+                    s+=fname[i].upper()
+                    i+=1
+                else:
+                    s+=fname[i]                         # stet
+                    i+=1
+        else:   # Non-letter or unflagged letter not following space: stet
+            s+=fname[i]
+            i+=1
+
+        # "Con" is a special case because it's a reserved Windows (DOS, actually) filename
+        if s.lower() == ";con;":
+            return s[1:-1]
+
+    return s
 
 
 
@@ -286,24 +352,19 @@ listofAllExistingWikiPnames=list(setofAllExistingWikiPnames)
 
 
 # Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
-print("\n")
 print("Creating list of local files")
 # Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
 # So we want a list of just those names stripped of the extension
 # We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
-listofAllFnamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
-listofAllFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
+listofAllDirFnamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
+listofAllDirFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
 
 # Create a list of all file names that have *both* .txt and .xml files
-setofAllFnamesTxt=set(listofAllFnamesTxt)
-setofAllFnamesXml=set(listofAllFnamesXml)
-listofAllDirFnames=list(setofAllFnamesTxt & setofAllFnamesXml)  # Intersection of set of names of xml files and set of names of txt files
-
-listOfAllDirFnames=[FileNameToPageName(p) for p in listofAllDirFnames]
+listofAllDirFnames=list(set(listofAllDirFnamesTxt) & set(listofAllDirFnamesXml))  # Intersection of set of names of xml files and set of names of txt files
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
-setofAllDirPnames=set([FileNameToPageName(val) for val in listOfAllDirFnames])
+setofAllDirPnames=set([FileNameToPageName(val) for val in listofAllDirFnames])
 listofMissingPnames=list(setofAllExistingWikiPnames-setofAllDirPnames)
 
 listofDeletedPnames=list(setofAllDirPnames-setofAllExistingWikiPnames)
@@ -345,7 +406,6 @@ else:
         else:
             countStillMissingPages+=1
 print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
-print("\n")
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
@@ -370,6 +430,5 @@ for pname in listofDeletedPnames:
 
 print("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+" could not be found")
 
-print("\n")
 print("Done")
 
