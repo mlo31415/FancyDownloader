@@ -350,7 +350,6 @@ listofAllWikiPnames=[val["title"] for val in allWikiPages]
 setofAllExistingWikiPnames=set(listofAllWikiPnames)-set(listofAllUncreatedPnames)
 listofAllExistingWikiPnames=list(setofAllExistingWikiPnames)
 
-
 # Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
 print("Creating list of local files")
 # Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
@@ -361,6 +360,13 @@ listofAllDirFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
 
 # Create a list of all file names that have *both* .txt and .xml files
 listofAllDirFnames=list(set(listofAllDirFnamesTxt) & set(listofAllDirFnamesXml))  # Intersection of set of names of xml files and set of names of txt files
+
+# Create a list of all file names that have one or the other but not both.
+listofPartialDirFnames=list(set(listofAllDirFnamesTxt) ^ set(listofAllDirFnamesXml))       # Symmetric difference
+if len(listofPartialDirFnames) == 0:
+    print("There are no partial page downloads")
+else:
+    print("There are "+str(len(listofPartialDirFnames))+" partial page downloads")
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
