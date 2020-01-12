@@ -185,6 +185,7 @@ def DownloadPage(fancy, pageName: str, pageData: dict):
 
     page=pywikibot.Page(fancy, pageName)
     if page.text is None or len(page.text) == 0:
+        print("       empty page: "+pageName)
         return False
 
     # Write the page source to <pageName>.txt
@@ -323,7 +324,7 @@ allWikiPages=[]
 for v in iterator:
     allWikiPages.append(v)
 
-#allWikiPages=[val for val in allWikiPages if val["title"] == "Robert A. Heinlein Award"]
+#allWikiPages=[val for val in allWikiPages if val["title"] == "Third Foundation"]
 
 # Get rid of the older instances of each page.
 # Use a dictionary which only contains the latest version
