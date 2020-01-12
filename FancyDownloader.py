@@ -329,11 +329,12 @@ for v in iterator:
 # Use a dictionary which only contains the latest version
 temp={}
 for p in allWikiPages:
-    if p["title"] in temp.keys():
-        if p["timestamp"] > temp[p["title"]]["timestamp"]:
-            temp[p["title"]]=p
+    pname=p["title"]
+    if pname in temp.keys():
+        if p["timestamp"] > temp[pname]["timestamp"]:
+            temp[pname]=p
     else:
-        temp[p["title"]]=p
+        temp[pname]=p
 
 # Recreate the listOfAllWikiPages from the de-duped dictionary
 allWikiPages=list(temp.values())
