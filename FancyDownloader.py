@@ -346,7 +346,7 @@ listofEmptyPages=[val for val in allWikiPages if val["newlen"] == 0]
 # Sort the list of all pages by timestamp
 def sorttime(page):
     return page["timestamp"]
-allWikiPages=sorted(allWikiPages, key=sorttime)
+allWikiPages=sorted(allWikiPages, key=sorttime, reverse=True)
 
 # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
 listofAllUncreatedPnames=[val["title"] for val in allWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
