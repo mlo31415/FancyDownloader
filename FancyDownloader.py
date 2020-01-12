@@ -323,6 +323,8 @@ allWikiPages=[]
 for v in iterator:
     allWikiPages.append(v)
 
+#allWikiPages=[val for val in allWikiPages if val["title"] == "Robert A. Heinlein Award"]
+
 # Get rid of the older instances of each page.
 # Use a dictionary which only contains the latest version
 temp={}
@@ -342,7 +344,7 @@ listofEmptyPages=[val for val in allWikiPages if val["newlen"] == 0]
 # Sort the list of all pages by timestamp
 def sorttime(page):
     return page["timestamp"]
-allWikiPages=sorted(allWikiPages, key=sorttime, reverse=False)
+allWikiPages=sorted(allWikiPages, key=sorttime)
 
 # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
 listofAllUncreatedPnames=[val["title"] for val in allWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
