@@ -377,6 +377,7 @@ else:
 setofAllDirPnames=set([FileNameToPageName(val) for val in listofAllDirFnames])
 listofMissingPnames=list(setofAllExistingWikiPnames-setofAllDirPnames)
 
+#TODO: Really ought to take into account chages with "logtype" == delete, as those are deletions, not updates
 listofDeletedPnames=list(setofAllDirPnames-setofAllExistingWikiPnames)
 
 # Download pages which exist in the website but not in the disk copy
