@@ -379,6 +379,20 @@ listofMissingPnames=list(setofAllExistingWikiPnames-setofAllDirPnames)
 
 listofDeletedPnames=list(setofAllDirPnames-setofAllExistingWikiPnames)
 
+# Download pages which exist in the website but not in the disk copy
+print("Downloading missing pages...")
+countMissingPages=0
+countStillMissingPages=0
+if len(listofMissingPnames) == 0:
+    print("   There are no missing pages")
+else:
+    for pname in listofMissingPnames:
+        if DownloadPage(fancy, pname, None):
+            countMissingPages+=1
+        else:
+            countStillMissingPages+=1
+print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
+
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
 # stoppingCriterion controls how long the update runs
@@ -404,18 +418,6 @@ for page in allWikiPages:
                 print("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
                 break
 
-print("Downloading missing pages...")
-countMissingPages=0
-countStillMissingPages=0
-if len(listofMissingPnames) == 0:
-    print("   There are no missing pages")
-else:
-    for pname in listofMissingPnames:
-        if DownloadPage(fancy, pname, None):
-            countMissingPages+=1
-        else:
-            countStillMissingPages+=1
-print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
