@@ -22,16 +22,19 @@
 # The synched wiki will be put into a directory 'site' one level up from the Python code.
 
 import pywikibot
-from datetime import timedelta
 import xml.etree.ElementTree as ET
 import os
 import datetime
+from datetime import timedelta
+from typing import Optional, Tuple
+
+from log import Log, LogOpen
 
 
 #-----------------------------------------
 # Convert page names to legal Windows filename
 # The characters illegal in Windows filenams will be replaced by ";xxx;" where xxx is a plausible name for the illegal character.
-def PageNameToFilename(pname: str):
+def PageNameToFilename(pname: str) -> str:
     # "Con" is a special case because it's a reserved Windows (DOS, actually) filename
     if pname.lower() == "con":
         pname=";"+pname+";" # And now handle it normally
@@ -68,7 +71,7 @@ def PageNameToFilename(pname: str):
     # Now handle special characters
     return s.replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
 
-def FileNameToPageName(fname: str):
+def FileNameToPageName(fname: str) -> str:
     # First undo the handling of special characters
     fname=fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":")
 
@@ -104,13 +107,11 @@ def FileNameToPageName(fname: str):
     return s
 
 
-
-
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
 # Input is of the form <b stuff>stuff</b>stuff
 # Return the contents of the first pair of brackets found, the remainder of the input string up to </b>, and anything leftover afterwards (the three stuffs)
-def FindBracketedText(s: str, b: str):
+def FindBracketedText(s: str, b: str) -> Optional[Tuple[str, str,str]]:
     strlower=s.lower()
     # Find <b ...>
     l1=strlower.find("<"+b.lower()) # Look for <b
@@ -118,7 +119,7 @@ def FindBracketedText(s: str, b: str):
         return "", "", s
     l2=strlower.find(">", l1)       # Look for following >
     if l2 == -1:
-        print("***Error: no terminating '>' found in "+strlower+"'")
+        Log("***Error: no terminating '>' found in "+strlower+"'", isError=True)
         return None
     s1=s[l1+len(b)+2:l2]
 
@@ -129,11 +130,12 @@ def FindBracketedText(s: str, b: str):
 
     return s1, s[l2+len(b):l3], s[l3+len(b)+3:]
 
+
 #-------------------------------------
 # Function to pull an href and accompanying text from a Tag
 # The structure is "<a href='URL'>LINKTEXT</a>
 # We want to extract the URL and LINKTEXT
-def GetHrefAndTextFromString(s: str):
+def GetHrefAndTextFromString(s: str) -> Tuple[Optional[str], Optional[str]]:
     s=FindBracketedText(s, "a")
     if s[0] == "":
         return None, None
@@ -141,18 +143,20 @@ def GetHrefAndTextFromString(s: str):
     # Remove the 'href="' from trailing '"' from the string
     return s[0][6:-1], s[1]
 
-def DecodeDatetime(dtstring: str):
+
+def DecodeDatetime(dtstring: str) -> datetime:
     if dtstring is None:
         return datetime.datetime(1950, 1, 1, 1, 1, 1)    # If there's no datetime, return something early
     if not dtstring.endswith("+00:00"):
         raise ValueError("Could not decode datetime: '"+dtstring+"'")
     return datetime.datetime.strptime(dtstring[:-6], '%Y-%m-%dT%H:%M:%S')
 
+
 # Download a page from Wikidot and possibly store it locally.
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all of the page meta information in <saveName>.xml
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
-def DownloadPage(fancy, pageName: str, pageData: dict):
+def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     #time.sleep(0.05)    # Wikidot has a limit on the number of RPC calls/second.  This is to throttle the download to stay on the safe side.
 
     pname=PageNameToFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
@@ -179,13 +183,13 @@ def DownloadPage(fancy, pageName: str, pageData: dict):
 
     # OK, we're going to download this one
     if pageName == pname:
-        print("   Updating: '"+pageName+"'")
+        Log("   Updating: '"+pageName+"'")
     else:
-        print("   Updating: '"+pageName+"' as '"+pname+"'")
+        Log("   Updating: '"+pageName+"' as '"+pname+"'")
 
     page=pywikibot.Page(fancy, pageName)
     if page.text is None or len(page.text) == 0:
-        print("       empty page: "+pageName)
+        Log("       empty page: "+pageName)
         return False
 
     # Write the page source to <pageName>.txt
@@ -215,7 +219,7 @@ def DownloadPage(fancy, pageName: str, pageData: dict):
     #         try:
     #             fileStuff = client.ServerProxy(url).files.get_one({"site": "fancyclopedia", "page": wikiName, "file": fileName})    # Download the file's content and metadata
     #         except client.Fault:
-    #             print("**** client.Fault loading "+fileName+". The file is probably too big.")
+    #             Log("**** client.Fault loading "+fileName+". The file is probably too big.")
     #             downloadFailures.append(fileName)
     #             continue
     #         path=os.path.join(os.getcwd(), pageName, fileName)
@@ -243,22 +247,21 @@ def DownloadPage(fancy, pageName: str, pageData: dict):
     #     try:
     #         els=browser.find_element_by_class_name("page-files").find_elements_by_tag_name("tr")
     #     except:
-    #         print('******find_element_by_class_name("page-files").find_elements_by_tag_name("tr") failed')
+    #         Log('******find_element_by_class_name("page-files").find_elements_by_tag_name("tr") failed')
     #
     #     for i in range(1, len(els)):
     #         h=els[i].get_attribute("outerHTML")
     #         url, linktext=GetHrefAndTextFromString(h)
     #         if linktext in downloadFailures:
     #             urllib.request.urlretrieve("http://fancyclopedia.org"+url, os.path.join(pageName, linktext))
-    #             print("     downloading big file "+linktext)
+    #             Log("     downloading big file "+linktext)
     #     browser.close()
 
     return True
 
 # Save the wiki page's metadata to an xml file
-def SaveMetadata(localName: str, pageData):
+def SaveMetadata(localName: str, pageData) -> None:
     root = ET.Element("data")
-    wikiUpdatedTime = None
 
     ET.SubElement(root, "timestamp").text=str(pageData.latest_revision.timestamp)
     ET.SubElement(root, "numrevisions").text=str(len(pageData._revisions))
@@ -269,13 +272,6 @@ def SaveMetadata(localName: str, pageData):
     # And write the xml out to file <localName>.xml.
     tree = ET.ElementTree(root)
     tree.write(localName)
-    return wikiUpdatedTime
-
-# Get the wiki page's update time from the its metadata
-def GetPageWikiTime(localName, pageData):
-    for itemName in pageData:
-        if itemName == "updated_at":  # Save the updated time
-            return pageData[itemName]
 
 
 # ############################################################################################
@@ -290,7 +286,11 @@ cwd=os.getcwd()
 path=os.path.join(cwd, "..\\site")
 os.chdir(path)
 os.chmod(path, 0o777)
-del cwd, path
+del path
+
+d=datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.txt")
+LogOpen(os.path.join(cwd, "Log "+d), os.path.join(cwd, "Error "+d))
+del d, cwd
 
 # Look for a file called "override.txt" -- if it exists, load those pages and do nothing else.
 # Override.txt contains a list of page names, one name per line.
@@ -305,7 +305,7 @@ del cwd, path
 #             nodupes.append(x)
 #     override=nodupes
 #     del nodupes, x
-#     print("Downloading override pages...")
+#     Log("Downloading override pages...")
 #     countDownloadedPages=0
 #     for pageName in override:
 #         if DownloadPage(fancy, pageName, None):
@@ -317,12 +317,14 @@ del cwd, path
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 # Note also that this list will contain pages that have been *deleted* on the wiki
-print("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
+Log("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
 iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 60 years...
 allWikiPages=[]
 for v in iterator:
     allWikiPages.append(v)
+
+Log("Downloaded list of changes includes "+str(len(allWikiPages))+" items")
 
 #allWikiPages=[val for val in allWikiPages if val["title"] == "Third Foundation"]
 
@@ -342,11 +344,13 @@ allWikiPages=list(temp.values())
 
 # Some members of this list are wiki pages referred to in the wiki which have not been created.
 listofEmptyPages=[val for val in allWikiPages if val["newlen"] == 0]
+Log("After de-duping, there are "+str(len(allWikiPages))+" pages left")
 
 # Sort the list of all pages by timestamp
 def sorttime(page):
     return page["timestamp"]
 allWikiPages=sorted(allWikiPages, key=sorttime, reverse=True)
+Log("The oldest page change listed is "+str(allWikiPages[-1]["timestamp"]))
 
 # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
 listofAllUncreatedPnames=[val["title"] for val in allWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
@@ -355,7 +359,7 @@ setofAllExistingWikiPnames=set(listofAllWikiPnames)-set(listofAllUncreatedPnames
 listofAllExistingWikiPnames=list(setofAllExistingWikiPnames)
 
 # Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
-print("Creating list of local files")
+Log("Creating list of local files")
 # Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
 # So we want a list of just those names stripped of the extension
 # We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
@@ -368,9 +372,9 @@ listofAllDirFnames=list(set(listofAllDirFnamesTxt) & set(listofAllDirFnamesXml))
 # Create a list of all file names that have one or the other but not both.
 listofPartialDirFnames=list(set(listofAllDirFnamesTxt) ^ set(listofAllDirFnamesXml))       # Symmetric difference
 if len(listofPartialDirFnames) == 0:
-    print("There are no partial page downloads")
+    Log("There are no partial page downloads")
 else:
-    print("There are "+str(len(listofPartialDirFnames))+" partial page downloads")
+    Log("There are "+str(len(listofPartialDirFnames))+" partial page downloads")
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
@@ -381,18 +385,18 @@ listofMissingPnames=list(setofAllExistingWikiPnames-setofAllDirPnames)
 listofDeletedPnames=list(setofAllDirPnames-setofAllExistingWikiPnames)
 
 # Download pages which exist in the website but not in the disk copy
-print("Downloading missing pages...")
+Log("Downloading missing pages...")
 countMissingPages=0
 countStillMissingPages=0
 if len(listofMissingPnames) == 0:
-    print("   There are no missing pages")
+    Log("   There are no missing pages")
 else:
     for pname in listofMissingPnames:
         if DownloadPage(fancy, pname, None):
             countMissingPages+=1
         else:
             countStillMissingPages+=1
-print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
+Log("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
@@ -404,7 +408,7 @@ print("   "+str(countMissingPages)+" missing pages downloaded     "+str(countSti
 # In that case there will be a wodge of up-to-date recently-changed pages before the pages that were past the interruption.
 # StoppingCriterion needs to be big enough to get past that wodge.
 stoppingCriterion=100
-print("Downloading recently updated pages...")
+Log("Downloading recently updated pages...")
 countUpToDatePages=0
 countDownloadedPages=0
 for page in allWikiPages:
@@ -415,20 +419,20 @@ for page in allWikiPages:
         else:
             countUpToDatePages+=1
             if stoppingCriterion > 0 and countUpToDatePages > stoppingCriterion:
-                print("      "+str(countDownloadedPages)+" pages downloaded")
-                print("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
+                Log("      "+str(countDownloadedPages)+" pages downloaded")
+                Log("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
                 break
 
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
-print("Removing deleted pages...")
+Log("Removing deleted pages...")
 countOfDeletedPages=0
 countOfUndeletedPages=0
 if len(listofDeletedPnames) == 0:
-    print("   There are no pages to delete")
+    Log("   There are no pages to delete")
 for pname in listofDeletedPnames:
-    print("   Removing: " + pname)
+    Log("   Removing: " + pname)
     deleted=False
     if os.path.isfile(pname + ".xml"):
         os.remove(pname + ".xml")
@@ -441,7 +445,7 @@ for pname in listofDeletedPnames:
     else:
         countOfUndeletedPages+=1
 
-print("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+" could not be found")
+Log("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+" could not be found")
 
-print("Done")
+Log("Done")
 
