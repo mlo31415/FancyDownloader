@@ -317,81 +317,99 @@ del d, cwd
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 # Note also that this list will contain pages that have been *deleted* on the wiki
-Log("Get list of all pages from Wikidot, sorted from most- to least-recently-updated")
-current_time = fancy.server_time()
-iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 60 years...
-allWikiPages=[]
-for v in iterator:
-    allWikiPages.append(v)
+Log("Get list of all pages from Wikidot")
+wikiPages=[]
+for val in fancy.allpages():
+    # Split on the first colon into namespace and page name
+    sv=str(val)
+    sv=sv[2:-1]     # Drop leading and trailing square brackets
+    loc=sv.find(":")
+    assert loc > 0
+    wikiPages.append((sv[:loc], sv[loc+1:], val))   # This is a list of tuples
+Log("   Number of pages on wiki: "+str(len(wikiPages)))
+wikiPnames=[r[1][:-1] for r in wikiPages]
 
-Log("Downloaded list of changes includes "+str(len(allWikiPages))+" items")
+Log("Get list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
+current_time = fancy.server_time()
+iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 3 months...
+recentWikiPages=[]
+for v in iterator:
+    recentWikiPages.append(v)
+
+Log("   Downloaded list of changes includes "+str(len(recentWikiPages))+" items")
 
 #allWikiPages=[val for val in allWikiPages if val["title"] == "Third Foundation"]
 
 # Get rid of the older instances of each page.
 # Use a dictionary which only contains the latest version
-temp={}
-for p in allWikiPages:
+tempDict={}
+for p in recentWikiPages:
     pname=p["title"]
-    if pname in temp.keys():
-        if p["timestamp"] > temp[pname]["timestamp"]:
-            temp[pname]=p
+    if pname in tempDict.keys():
+        if p["timestamp"] > tempDict[pname]["timestamp"]:
+            tempDict[pname]=p
     else:
-        temp[pname]=p
+        tempDict[pname]=p
 
 # Recreate the listOfAllWikiPages from the de-duped dictionary
-allWikiPages=list(temp.values())
+recentWikiPages=list(tempDict.values())
 
 # Some members of this list are wiki pages referred to in the wiki which have not been created.
-listofEmptyPages=[val for val in allWikiPages if val["newlen"] == 0]
-Log("After de-duping, there are "+str(len(allWikiPages))+" pages left")
+emptyWikiPnames=[val for val in recentWikiPages if val["newlen"] == 0]
+Log("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
 
 # Sort the list of all pages by timestamp
 def sorttime(page):
     return page["timestamp"]
-allWikiPages=sorted(allWikiPages, key=sorttime, reverse=True)
-Log("The oldest page change listed is "+str(allWikiPages[-1]["timestamp"]))
+recentWikiPages=sorted(recentWikiPages, key=sorttime, reverse=True)
+Log("   The oldest page change listed is "+str(recentWikiPages[-1]["timestamp"]))
 
 # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
-listofAllUncreatedPnames=[val["title"] for val in allWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
-listofAllWikiPnames=[val["title"] for val in allWikiPages]
-setofAllExistingWikiPnames=set(listofAllWikiPnames)-set(listofAllUncreatedPnames)
-listofAllExistingWikiPnames=list(setofAllExistingWikiPnames)
+uncreatedWikiPnames=[val["title"] for val in recentWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
+Log("   There are "+str(len(uncreatedWikiPnames))+" recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored")
+recentWikiPnames=[val["title"] for val in recentWikiPages]
+createdWikiPnamesSet=set(recentWikiPnames)-set(uncreatedWikiPnames)
+createdWikiPnames=list(createdWikiPnamesSet)
+Log("   There are "+str(len(createdWikiPnames))+" recent pages that exist on the wiki")
 
 # Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
 Log("Creating list of local files")
 # Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
 # So we want a list of just those names stripped of the extension
 # We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
-listofAllDirFnamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
-listofAllDirFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
+localFnamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
+localFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
 
 # Create a list of all file names that have *both* .txt and .xml files
-listofAllDirFnames=list(set(listofAllDirFnamesTxt) & set(listofAllDirFnamesXml))  # Intersection of set of names of xml files and set of names of txt files
+localFnames=list(set(localFnamesTxt) & set(localFnamesXml))  # Union of set of names of xml files and set of names of txt files yields all pages, partial and complete
+Log("    There are "+str(len(localFnames))+ " pages which are in the local copy")
 
 # Create a list of all file names that have one or the other but not both.
-listofPartialDirFnames=list(set(listofAllDirFnamesTxt) ^ set(listofAllDirFnamesXml))       # Symmetric difference
-if len(listofPartialDirFnames) == 0:
-    Log("There are no partial page downloads")
+partialLocalFnames=list(set(localFnamesTxt) ^ set(localFnamesXml))       # Symmetric difference yields list of partial local copies of pages
+if len(partialLocalFnames) == 0:
+    Log("    There are no partial page downloads")
 else:
-    Log("There are "+str(len(listofPartialDirFnames))+" partial page downloads")
+    Log("    There are "+str(len(partialLocalFnames))+" partial page downloads")
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
-setofAllDirPnames=set([FileNameToPageName(val) for val in listofAllDirFnames])
-listofMissingPnames=list(setofAllExistingWikiPnames-setofAllDirPnames)
+localPnamesSet=set([FileNameToPageName(val) for val in localFnames])
+wikiPnamesSet=set(wikiPnames)
+missingLocalPnames=list(wikiPnamesSet-localPnamesSet)
+Log("There are "+str(len(missingLocalPnames))+" pages which are on the wiki but not in the local copy.")
 
-#TODO: Really ought to take into account chages with "logtype" == delete, as those are deletions, not updates
-listofDeletedPnames=list(setofAllDirPnames-setofAllExistingWikiPnames)
+#TODO: Really ought to take into account changes with "logtype" == delete, as those are deletions, not updates
+deletedWikiPnames=list(localPnamesSet-wikiPnamesSet)
+Log("There are "+str(len(deletedWikiPnames))+ " pages which are in the local copy, but not on the wiki.")
 
 # Download pages which exist in the website but not in the disk copy
 Log("Downloading missing pages...")
 countMissingPages=0
 countStillMissingPages=0
-if len(listofMissingPnames) == 0:
+if len(missingLocalPnames) == 0:
     Log("   There are no missing pages")
 else:
-    for pname in listofMissingPnames:
+    for pname in missingLocalPnames:
         if DownloadPage(fancy, pname, None):
             countMissingPages+=1
         else:
@@ -407,13 +425,13 @@ Log("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStill
 # This is used to handle cases where the downloading and comparison process has been interrupted before updating all changed pages.
 # In that case there will be a wodge of up-to-date recently-changed pages before the pages that were past the interruption.
 # StoppingCriterion needs to be big enough to get past that wodge.
-stoppingCriterion=100
+stoppingCriterion=500
 Log("Downloading recently updated pages...")
 countUpToDatePages=0
 countDownloadedPages=0
-for page in allWikiPages:
+for page in recentWikiPages:
     pageName=page["title"]
-    if pageName in setofAllExistingWikiPnames:
+    if pageName in createdWikiPnamesSet:
         if DownloadPage(fancy, pageName, page):
             countDownloadedPages+=1
         else:
@@ -429,21 +447,26 @@ for page in allWikiPages:
 Log("Removing deleted pages...")
 countOfDeletedPages=0
 countOfUndeletedPages=0
-if len(listofDeletedPnames) == 0:
+if len(deletedWikiPnames) == 0:
     Log("   There are no pages to delete")
-for pname in listofDeletedPnames:
-    Log("   Removing: " + pname)
+for pname in deletedWikiPnames:
+    fname=PageNameToFilename(pname)
+    Log("   Removing: " + pname + " as "+fname, noNewLine=True)
     deleted=False
-    if os.path.isfile(pname + ".xml"):
-        os.remove(pname + ".xml")
+    if os.path.isfile(fname + ".xml"):
+        os.remove(fname + ".xml")
+        Log(" (.xml)", noNewLine=True)
         deleted=True
-    if os.path.isfile(pname + ".txt"):
-        os.remove(pname + ".txt")
+    if os.path.isfile(fname + ".txt"):
+        os.remove(fname + ".txt")
+        Log(" (.txt)", noNewLine=True)
         deleted=True
     if deleted:
         countOfDeletedPages+=1
+        Log("  ...gone!")
     else:
         countOfUndeletedPages+=1
+        Log("   ( files could not be found)")
 
 Log("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+" could not be found")
 
