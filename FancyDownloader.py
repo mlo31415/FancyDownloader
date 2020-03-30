@@ -28,84 +28,8 @@ import datetime
 from datetime import timedelta
 from typing import Optional, Tuple
 
-from log import Log, LogOpen
-
-
-#-----------------------------------------
-# Convert page names to legal Windows filename
-# The characters illegal in Windows filenams will be replaced by ";xxx;" where xxx is a plausible name for the illegal character.
-def PageNameToFilename(pname: str) -> str:
-    # "Con" is a special case because it's a reserved Windows (DOS, actually) filename
-    if pname.lower() == "con":
-        pname=";"+pname+";" # And now handle it normally
-
-    # There's a complicated algorithm for handling uc/lc issues
-    # Letters that are the wrong case are followed by a ^^
-    # The right case is the 1st character uc and the first character after a space uc, all others lc.
-    s=""
-    i=0
-    while i < len(pname):
-        if i == 0:  # Leading char defaults to upper
-            if pname[0].isupper() or not pname[0].isalpha():
-                s=pname[0]
-            else:
-                s=pname[0].upper()+"^^"
-            i+=1
-        elif not pname[i].isalpha():    # Nonalpha characters pass through unchanged
-            s+=pname[i]
-            i+=1
-        elif pname[i-1] == " ":      # First alpha char after a space defaults to upper
-            # pname[i] is alpha
-            if pname[i].isupper():
-                s+=pname[i]         # Upper case in this position passes through
-            else:
-                s+=pname[i].upper()+"^^"    # Lower case gets a special flag
-            i+=1
-        else:    # All other chars defaults to lower
-            # pname[i] is alpha
-            if pname[i].islower():
-                s+=pname[i]     # Lower passes through
-            else:
-                s+=pname[i].lower()+"^^"    # Upper gets converted to lower and flagged
-            i+=1
-    # Now handle special characters
-    return s.replace("*", ";star;").replace("/", ";slash;").replace("?", ";ques;").replace('"', ";quot;").replace("<", ";lt;").replace(">", ";gt;").replace("\\", ";back;").replace("|", ";bar;").replace(":", ";colon;")
-
-def FileNameToPageName(fname: str) -> str:
-    # First undo the handling of special characters
-    fname=fname.replace(";star;", "*").replace(";slash;", "/").replace(";ques;", "?").replace(";quot;", '"').replace(";lt;", "<").replace(";gt;", ">").replace(";back;", "\\").replace(";bar;", "|").replace(";colon;", ":")
-
-    s=""
-    i=0
-    while i < len(fname):
-        if fname[i].isalpha() and len(fname) > i+2:     # Is it a letter which could be flagged?
-            if fname[i+1] == "^" and fname[i+2] == "^": # Is it flagged?
-                if i == 0:                              # 1st letter is flagged: 'X^^' --> 'x'
-                    s+=fname[0].lower()
-                    i+=3
-                elif fname[i-1] == " ":                 # Flagged letter following space: ' x^^' --> ' x'
-                    s+=fname[i].lower()
-                    i+=3
-                else:                                   # flagged letter not following space: 'ax^^' --> 'aX'
-                    s+=fname[i].upper()
-                    i+=3
-            else:                                       # It is unflagged
-                if fname[i-1] == " ":                   # Is it an unflagged letter following space? ' x' --> ' X'
-                    s+=fname[i].upper()
-                    i+=1
-                else:
-                    s+=fname[i]                         # stet
-                    i+=1
-        else:   # Non-letter or unflagged letter not following space: stet
-            s+=fname[i]
-            i+=1
-
-        # "Con" is a special case because it's a reserved Windows (DOS, actually) filename
-        if s.lower() == ";con;":
-            return s[1:-1]
-
-    return s
-
+from Log import Log, LogOpen
+from HelpersPackage import WikiPageNameToFilename, FileNameToWikiPageName
 
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
@@ -159,7 +83,7 @@ def DecodeDatetime(dtstring: str) -> datetime:
 def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     #time.sleep(0.05)    # Wikidot has a limit on the number of RPC calls/second.  This is to throttle the download to stay on the safe side.
 
-    pname=PageNameToFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
+    pname=WikiPageNameToFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
 
     # If we set updateAll to True, then we skip the date checks and always do the update
     if pageData is not None:
@@ -393,7 +317,7 @@ else:
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
-localPnamesSet=set([FileNameToPageName(val) for val in localFnames])
+localPnamesSet=set([FileNameToWikiPageName(val) for val in localFnames])
 wikiPnamesSet=set(wikiPnames)
 missingLocalPnames=list(wikiPnamesSet-localPnamesSet)
 Log("There are "+str(len(missingLocalPnames))+" pages which are on the wiki but not in the local copy.")
@@ -450,7 +374,7 @@ countOfUndeletedPages=0
 if len(deletedWikiPnames) == 0:
     Log("   There are no pages to delete")
 for pname in deletedWikiPnames:
-    fname=PageNameToFilename(pname)
+    fname=WikiPageNameToFilename(pname)
     Log("   Removing: " + pname + " as "+fname, noNewLine=True)
     deleted=False
     if os.path.isfile(fname + ".xml"):
