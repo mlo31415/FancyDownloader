@@ -212,9 +212,7 @@ os.chdir(path)
 os.chmod(path, 0o777)
 del path
 
-d=datetime.datetime.now().strftime("%Y-%m-%d %H.%M.%S.txt")
-LogOpen(os.path.join(cwd, "Log "+d), os.path.join(cwd, "Error "+d))
-del d, cwd
+LogOpen("Log", "Error", dated=True)
 
 # Look for a file called "override.txt" -- if it exists, load those pages and do nothing else.
 # Override.txt contains a list of page names, one name per line.
