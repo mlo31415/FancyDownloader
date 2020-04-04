@@ -29,7 +29,7 @@ from datetime import timedelta
 from typing import Optional, Tuple
 
 from Log import Log, LogOpen
-from HelpersPackage import WikiPageNameToFilename, FileNameToWikiPageName
+from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiPagename
 
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
@@ -83,7 +83,7 @@ def DecodeDatetime(dtstring: str) -> datetime:
 def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     #time.sleep(0.05)    # Wikidot has a limit on the number of RPC calls/second.  This is to throttle the download to stay on the safe side.
 
-    pname=WikiPageNameToFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
+    pname=WikiPagenameToWindowsFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
 
     # If we set updateAll to True, then we skip the date checks and always do the update
     if pageData is not None:
@@ -239,17 +239,16 @@ LogOpen("Log", "Error", dated=True)
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 # Note also that this list will contain pages that have been *deleted* on the wiki
-Log("Get list of all pages from Wikidot")
+Log("Get list of all pages from the wiki")
 wikiPages=[]
 for val in fancy.allpages():
     # Split on the first colon into namespace and page name
-    sv=str(val)
-    sv=sv[2:-1]     # Drop leading and trailing square brackets
-    loc=sv.find(":")
-    assert loc > 0
-    wikiPages.append((sv[:loc], sv[loc+1:], val))   # This is a list of tuples
+    sv=str(val).strip("[]")     # Drop leading and trailing square brackets
+    assert sv.find(":") > 0
+    parts=sv.split(":", 1)
+    wikiPages.append((parts[0], parts[1], val))   # This is a list of tuples
 Log("   Number of pages on wiki: "+str(len(wikiPages)))
-wikiPnames=[r[1][:-1] for r in wikiPages]
+wikiPnames=[r[1] for r in wikiPages]
 
 Log("Get list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
@@ -308,14 +307,18 @@ Log("    There are "+str(len(localFnames))+ " pages which are in the local copy"
 
 # Create a list of all file names that have one or the other but not both.
 partialLocalFnames=list(set(localFnamesTxt) ^ set(localFnamesXml))       # Symmetric difference yields list of partial local copies of pages
+partialLocalFnames=[p for p in partialLocalFnames if not p.startswith("Log 202")]   # Ignore log files that find there way here
 if len(partialLocalFnames) == 0:
     Log("    There are no partial page downloads")
 else:
     Log("    There are "+str(len(partialLocalFnames))+" partial page downloads")
+    for pname in partialLocalFnames:
+        DownloadPage(fancy, pname, None)
+
 
 # Figure out what pages are missing from the local copy and download them.
 # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
-localPnamesSet=set([FileNameToWikiPageName(val) for val in localFnames])
+localPnamesSet=set([WindowsFilenameToWikiPagename(val) for val in localFnames])
 wikiPnamesSet=set(wikiPnames)
 missingLocalPnames=list(wikiPnamesSet-localPnamesSet)
 Log("There are "+str(len(missingLocalPnames))+" pages which are on the wiki but not in the local copy.")
@@ -372,7 +375,7 @@ countOfUndeletedPages=0
 if len(deletedWikiPnames) == 0:
     Log("   There are no pages to delete")
 for pname in deletedWikiPnames:
-    fname=WikiPageNameToFilename(pname)
+    fname=WikiPagenameToWindowsFilename(pname)
     Log("   Removing: " + pname + " as "+fname, noNewLine=True)
     deleted=False
     if os.path.isfile(fname + ".xml"):
