@@ -81,8 +81,6 @@ def DecodeDatetime(dtstring: str) -> datetime:
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
 def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
-    #time.sleep(0.05)    # Wikidot has a limit on the number of RPC calls/second.  This is to throttle the download to stay on the safe side.
-
     pname=WikiPagenameToWindowsFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
 
     # If we set updateAll to True, then we skip the date checks and always do the update
@@ -184,13 +182,24 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     return True
 
 # Save the wiki page's metadata to an xml file
-def SaveMetadata(localName: str, pageData) -> None:
+def SaveMetadata(localName: str, pageData: pywikibot.page) -> None:
     root = ET.Element("data")
 
-    ET.SubElement(root, "timestamp").text=str(pageData.latest_revision.timestamp)
+    ET.SubElement(root, "title").text=str(pageData.title())
+    ET.SubElement(root, "filename").text=str(pageData.title(as_filename=True))
+    ET.SubElement(root, "urlname").text=str(pageData.title(as_url=True))
+    ET.SubElement(root, "isRedirectPage").text=str(pageData.isRedirectPage())
     ET.SubElement(root, "numrevisions").text=str(len(pageData._revisions))
     ET.SubElement(root, "pageid").text=str(pageData.pageid)
     ET.SubElement(root, "revid").text=str(pageData._revid)
+    ET.SubElement(root, "edittime").text=str(pageData.editTime())
+    ET.SubElement(root, "permalink").text=str(pageData.permalink())
+
+    ET.SubElement(root, "categories").text=str([c for c in pageData.categories()])
+    #ET.SubElement(root, "backlinks").text=str([c for c in pageData.backlinks()])
+    #ET.SubElement(root, "linkedPages").text=str([c for c in pageData.linkedPages()])
+
+    ET.SubElement(root, "timestamp").text=str(pageData.latest_revision.timestamp)
     ET.SubElement(root, "user").text=str(pageData.latest_revision.user)
 
     # And write the xml out to file <localName>.xml.
