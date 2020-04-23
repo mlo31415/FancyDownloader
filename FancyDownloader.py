@@ -249,15 +249,17 @@ LogOpen("Log", "Error", dated=True)
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 # Note also that this list will contain pages that have been *deleted* on the wiki
 Log("Get list of all pages from the wiki")
-wikiPages=[]
-for val in fancy.allpages():
-    # Split on the first colon into namespace and page name
-    sv=str(val).strip("[]")     # Drop leading and trailing square brackets
-    assert sv.find(":") > 0
-    parts=sv.split(":", 1)
-    wikiPages.append((parts[0], parts[1], val))   # This is a list of tuples
-Log("   Number of pages on wiki: "+str(len(wikiPages)))
-wikiPnames=[r[1] for r in wikiPages]
+wikiPnames=[]
+for ns in fancy.namespaces:
+    if ns < 0:
+        continue
+    for page in fancy.allpages(namespace=ns):
+        # Split on the first colon into namespace and page name
+        sv=str(page).strip("[]")     # Drop leading and trailing square brackets
+        assert sv.find(":") > 0
+        parts=sv.split(":", 1)
+        wikiPnames.append(parts[1])
+Log("   Number of pages on wiki: "+str(len(wikiPnames)))
 
 Log("Get list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
