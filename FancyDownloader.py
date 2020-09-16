@@ -112,7 +112,6 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     page=pywikibot.Page(fancy, pageName)
     if page.text is None or len(page.text) == 0:
         Log("       empty page: "+pageName)
-        return False
 
     # Write the page source to <pageName>.txt
     text=page.text
@@ -127,59 +126,16 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     # Write the page's metadata to <pageName>.xml
     SaveMetadata(pname+".xml", page)
 
-    # # Check for attached files
-    # # If any exist, save them in a directory named <pageName>
-    # # If none exist, don't create the directory
-    # # Note that this code does not delete the directory when previously-existing files have been deleted from the wiki page
-    # fileNameList=client.ServerProxy(url).files.select({"site": "fancyclopedia", "page": wikiName})
-    # downloadFailures=[]
-    # if len(fileNameList) > 0:
-    #     if not os.path.exists(pageName):
-    #         os.mkdir(pageName)   # Create a directory for the files and metadata
-    #         os.chmod(pageName, 0o777)
-    #     for fileName in fileNameList:
-    #         try:
-    #             fileStuff = client.ServerProxy(url).files.get_one({"site": "fancyclopedia", "page": wikiName, "file": fileName})    # Download the file's content and metadata
-    #         except client.Fault:
-    #             Log("**** client.Fault loading "+fileName+". The file is probably too big.")
-    #             downloadFailures.append(fileName)
-    #             continue
-    #         path=os.path.join(os.getcwd(), pageName, fileName)
-    #         content=base64.b64decode(fileStuff["content"])
-    #         with open(path, "wb+") as file:
-    #             file.write(content)     # Save the content as a file
-    #
-    #         # Now save the file's metadata in an xml file named for the file
-    #         del fileStuff["content"]    # We don't want to store the file's content in the metadata since we already saved it as a file.
-    #         SaveMetadata(os.path.join(pageName, fileName), fileStuff)
-
-    # # Wikidot has a limit on the size of a file which can be downloaded through the API which is much smaller than the filesize limit on the site.
-    # # If any files failed to download, try to download then using Selenium
-    # # This should get the file, but can't get the metadata.
-    # if len(downloadFailures) > 0:
-    #     # Instantiate the web browser Selenium will use. For now, we're opening it anew each time.
-    #     browser=webdriver.Firefox()
-    #     # Open the Fancy 3 page in the browser
-    #     browser.get("http://fancyclopedia.org/"+pageName+"/noredirect/t")
-    #     elem=browser.find_element_by_id('files-button')
-    #     elem.send_keys(Keys.RETURN)
-    #     time.sleep(0.7)  # Just-in-case
-    #     # wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'page-files')))
-    #
-    #     try:
-    #         els=browser.find_element_by_class_name("page-files").find_elements_by_tag_name("tr")
-    #     except:
-    #         Log('******find_element_by_class_name("page-files").find_elements_by_tag_name("tr") failed')
-    #
-    #     for i in range(1, len(els)):
-    #         h=els[i].get_attribute("outerHTML")
-    #         url, linktext=GetHrefAndTextFromString(h)
-    #         if linktext in downloadFailures:
-    #             urllib.request.urlretrieve("http://fancyclopedia.org"+url, os.path.join(pageName, linktext))
-    #             Log("     downloading big file "+linktext)
-    #     browser.close()
+    # Is this a file?
+    if page.is_filepage():
+        # Then download it.
+        filename=pageName.split(":")
+        assert len(filename) == 2
+        pywikibot.FilePage(fancy, filename[1]).download(filename[1])
+        Log("       "+filename[1]+" downloaded")
 
     return True
+
 
 # Save the wiki page's metadata to an xml file
 def SaveMetadata(localName: str, pageData: pywikibot.page) -> None:
