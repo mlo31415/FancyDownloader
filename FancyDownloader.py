@@ -84,7 +84,9 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
     pname=WikiPagenameToWindowsFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
 
     # If we set updateAll to True, then we skip the date checks and always do the update
+    action="Downloading"
     if pageData is not None:
+        action="Updating"
         # NOTE: This relies on the update times stored in the local file's xml and in the last update time data from pageData
         # It will not detect incompletely downloaded pages if the xml file exists
         # Check the timestamps and only update if the page on the server is newer than the local copy
@@ -105,9 +107,9 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
 
     # OK, we're going to download this one
     if pageName == pname:
-        Log("   Updating: '"+pageName+"'")
+        Log("   "+action+": '"+pageName+"'")
     else:
-        Log("   Updating: '"+pageName+"' as '"+pname+"'")
+        Log("   "+action+": '"+pageName+"' as '"+pname+"'")
 
     page=pywikibot.Page(fancy, pageName)
     if page.text is None or len(page.text) == 0:
