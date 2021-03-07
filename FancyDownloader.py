@@ -206,7 +206,7 @@ LogOpen("Log", "Error", dated=True)
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 # Note also that this list will contain pages that have been *deleted* on the wiki
-Log("Get list of all pages from the wiki")
+Log("Download list of all pages from the wiki")
 wikiPnames=[]
 for ns in fancy.namespaces:
     if ns < 0:
@@ -219,7 +219,7 @@ for ns in fancy.namespaces:
         wikiPnames.append(parts[1])
 Log("   Number of pages on wiki: "+str(len(wikiPnames)))
 
-Log("Get list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
+Log("Download list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
 iterator=fancy.recentchanges(start = current_time, end=current_time - timedelta(hours=600000))   # Not for all time, just for the last 3 months...
 recentWikiPages=[]
