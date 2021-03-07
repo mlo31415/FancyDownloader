@@ -335,6 +335,22 @@ for page in recentWikiPages:
                 Log("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
                 break
 
+# Optionally, force the download of pages
+
+forcedWikiDownloads=[]
+#forcedWikiDownloads=[x for x in wikiPnames if "a" in x or "e" in x or "i" in x or "o" in x or "u" in x ]
+if len(forcedWikiDownloads) > 0:
+    Log("Forced downloading of pages...")
+    countForcedPages=0
+    countStillMissingPages=0
+    forcedLocalPnames=[x for x in forcedWikiDownloads]
+    for pname in forcedLocalPnames:
+        if DownloadPage(fancy, pname, None):
+            countForcedPages+=1
+        else:
+            countStillMissingPages+=1
+    Log("   "+str(countForcedPages)+" forced pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
+
 
 # And delete local copies of pages which have disappeared from the wiki
 # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
