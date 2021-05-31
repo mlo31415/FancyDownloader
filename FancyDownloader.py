@@ -235,10 +235,7 @@ Log("   Downloaded list of changes includes "+str(len(recentWikiPages))+" items"
 tempDict={}
 for p in recentWikiPages:
     pname=p["title"]
-    if pname in tempDict.keys():
-        if p["timestamp"] > tempDict[pname]["timestamp"]:
-            tempDict[pname]=p
-    else:
+    if pname not in tempDict.keys() or p["timestamp"] > tempDict[pname]["timestamp"]:
         tempDict[pname]=p
 
 # Recreate the listOfAllWikiPages from the de-duped dictionary
