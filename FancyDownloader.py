@@ -21,12 +21,13 @@
 
 # The synched wiki will be put into a directory 'site' one level up from the Python code.
 
+from __future__ import annotations
 import pywikibot
 import xml.etree.ElementTree as ET
 import os
 import datetime
 from datetime import timedelta
-from typing import Optional, Tuple
+from typing import Optional
 
 from Log import Log, LogOpen
 from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiPagename
@@ -35,7 +36,7 @@ from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiP
 # Find text bracketed by <b>...</b>
 # Input is of the form <b stuff>stuff</b>stuff
 # Return the contents of the first pair of brackets found, the remainder of the input string up to </b>, and anything leftover afterwards (the three stuffs)
-def FindBracketedText(s: str, b: str) -> Optional[Tuple[str, str,str]]:
+def FindBracketedText(s: str, b: str) -> Optional[tuple[str, str,str]]:
     strlower=s.lower()
     # Find <b ...>
     l1=strlower.find("<"+b.lower()) # Look for <b
@@ -59,7 +60,7 @@ def FindBracketedText(s: str, b: str) -> Optional[Tuple[str, str,str]]:
 # Function to pull an href and accompanying text from a Tag
 # The structure is "<a href='URL'>LINKTEXT</a>
 # We want to extract the URL and LINKTEXT
-def GetHrefAndTextFromString(s: str) -> Tuple[Optional[str], Optional[str]]:
+def GetHrefAndTextFromString(s: str) -> tuple[Optional[str], Optional[str]]:
     s=FindBracketedText(s, "a")
     if s[0] == "":
         return None, None
@@ -206,6 +207,7 @@ LogOpen("Log", "Error", dated=True)
 # We'll then get rid of all but the most recent modification of each page.
 # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
 # Note also that this list will contain pages that have been *deleted* on the wiki
+report: str=""
 Log("Download list of all pages from the wiki")
 wikiPnames=[]
 for ns in fancy.namespaces:
@@ -217,7 +219,9 @@ for ns in fancy.namespaces:
         assert sv.find(":") > 0
         parts=sv.split(":", 1)
         wikiPnames.append(parts[1])
-Log("   Number of pages on wiki: "+str(len(wikiPnames)))
+s=f"   Number of pages on wiki: {len(wikiPnames)}"
+Log(s)
+report+=s+"\n"
 
 Log("Download list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
 current_time = fancy.server_time()
@@ -226,8 +230,7 @@ recentWikiPages=[]
 for v in iterator:
     recentWikiPages.append(v)
 
-Log("   Downloaded list of changes includes "+str(len(recentWikiPages))+" items")
-
+Log(f"   Downloaded list of changes includes {len(recentWikiPages)} items")
 #allWikiPages=[val for val in allWikiPages if val["title"] == "Third Foundation"]
 
 # Get rid of the older instances of each page.
@@ -253,11 +256,16 @@ Log("   The oldest page change listed is "+str(recentWikiPages[-1]["timestamp"])
 
 # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
 uncreatedWikiPnames=[val["title"] for val in recentWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
-Log("   There are "+str(len(uncreatedWikiPnames))+" recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored")
+s=f"   There are {len(uncreatedWikiPnames)} recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored"
+Log(s)
+report+=s+"\n"
+
 recentWikiPnames=[val["title"] for val in recentWikiPages]
 createdWikiPnamesSet=set(recentWikiPnames)-set(uncreatedWikiPnames)
 createdWikiPnames=list(createdWikiPnamesSet)
-Log("   There are "+str(len(createdWikiPnames))+" recent pages that exist on the wiki")
+s=f"   There are {len(createdWikiPnames)} recent pages that exist on the wiki"
+Log(s)
+report+=s+"\n"
 
 # Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
 Log("Creating list of local files")
@@ -277,7 +285,9 @@ partialLocalFnames=[p for p in partialLocalFnames if not p.startswith("Log 202")
 if len(partialLocalFnames) == 0:
     Log("    There are no partial page downloads")
 else:
-    Log("    There are "+str(len(partialLocalFnames))+" partial page downloads")
+    s=f"   There are {len(partialLocalFnames)} partial page downloads required"
+    Log(s)
+    report+=s+"\n"
     for pname in partialLocalFnames:
         DownloadPage(fancy, pname, None)
 
@@ -287,25 +297,32 @@ else:
 localPnamesSet=set([WindowsFilenameToWikiPagename(val) for val in localFnames])
 wikiPnamesSet=set(wikiPnames)
 missingLocalPnames=list(wikiPnamesSet-localPnamesSet)
-Log("There are "+str(len(missingLocalPnames))+" pages which are on the wiki but not in the local copy.")
+s=f"   There are {len(missingLocalPnames)} pages which are on the wiki but not in the local copy."
+Log(s)
+report+=s+"\n"
 
 #TODO: Really ought to take into account changes with "logtype" == delete, as those are deletions, not updates
 deletedWikiPnames=list(localPnamesSet-wikiPnamesSet)
-Log("There are "+str(len(deletedWikiPnames))+ " pages which are in the local copy, but not on the wiki.")
+Log(f"There are {len(deletedWikiPnames)} pages which are in the local copy, but not on the wiki.")
 
 # Download pages which exist in the website but not in the disk copy
 Log("Downloading missing pages...")
 countMissingPages=0
 countStillMissingPages=0
 if len(missingLocalPnames) == 0:
-    Log("   There are no missing pages")
+    s="   There are no missing pages"
+    Log(s)
+    report+=s+"\n"
 else:
     for pname in missingLocalPnames:
         if DownloadPage(fancy, pname, None):
             countMissingPages+=1
         else:
             countStillMissingPages+=1
-Log("   "+str(countMissingPages)+" missing pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
+    s=f"   {countMissingPages} missing pages downloaded     {countStillMissingPages} could not be downloaded"
+    Log(s)
+    report+=s+"\n"
+
 
 # Download the recently updated pages until we start finding pages we already have the most recent version of
 #
@@ -328,7 +345,9 @@ for page in recentWikiPages:
         else:
             countUpToDatePages+=1
             if stoppingCriterion > 0 and countUpToDatePages > stoppingCriterion:
-                Log("      "+str(countDownloadedPages)+" pages downloaded")
+                s=f"   {countDownloadedPages} updated pages downloaded"
+                Log(s)
+                report+=s+"\n"
                 Log("      Ending downloads. " + str(stoppingCriterion) + " up-to-date pages found")
                 break
 
@@ -346,7 +365,9 @@ if len(forcedWikiDownloads) > 0:
             countForcedPages+=1
         else:
             countStillMissingPages+=1
-    Log("   "+str(countForcedPages)+" forced pages downloaded     "+str(countStillMissingPages)+" could not be downloaded")
+    s=f"   {countForcedPages} forced pages downloaded     {countStillMissingPages} could not be downloaded"
+    Log(s)
+    report+=s+"\n"
 
 
 # And delete local copies of pages which have disappeared from the wiki
@@ -375,7 +396,12 @@ for pname in deletedWikiPnames:
         countOfUndeletedPages+=1
         Log("   ( files could not be found)")
 
-Log("   "+str(countOfDeletedPages)+" deleted pages removed    "+str(countOfUndeletedPages)+" could not be found")
+s=f"   {countOfDeletedPages} deleted pages removed    {countOfUndeletedPages} could not be found"
+Log(s)
+report+=s+"\n"
 
 Log("Done")
+
+print("\n\n----------------------")
+print(report)
 
