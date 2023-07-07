@@ -9,17 +9,17 @@
 # The downloader then walks the list, downloading new copies of each page which is newer on the wiki than in the local copy.
 #    It stops when it finds a page where the local copy is up-to-date
 #          (Note that this leave it vulnerable to a case where the downloader fails partway through and updates some pages and not others.
-#          The next time it is run, if any pages have been updated in the mean time, the massed pages won;t be noticed.
+#          The next time it is run, if any pages have been updated in the meantime, the massed pages won't be noticed.
 #          Since the alternative is to check every page every time, and since this was written to deal with a wiki with >20K pages, it is an accepted issue to be dea;lt with by hand.)
 #    The next step is to compare the list of all local .txt files with the list of all pages, and to download any which are missing.
 #          (Note that this does not deal with deleted .xml files or deleted attached files.  This fairly cheap to check, so it might be a useful enhancement.)
 #    The final step is to look for local .txt files which are not on the wiki.  These will typically be files which have been deleted on the wiki.  They are deleted locally.
 
-# The wiki to be synched and the credentials are stored in a file url.txt.  It contains a single line of text of the form:
+# The wiki to be synced and the credentials are stored in a file url.txt.  It contains a single line of text of the form:
 #      https://fancyclopedia:rdS...80g@www.wikidot.com/xml-rpc-api.php
 # where 'fancyclopedia' is the wiki and 'rdS...80g' is the access key
 
-# The synched wiki will be put into a directory 'site' one level up from the Python code.
+# The synced wiki will be put into a directory 'site' one level up from the Python code.
 
 from __future__ import annotations
 import pywikibot
@@ -322,7 +322,7 @@ def DecodeDatetime(dtstring: str) -> datetime:
 
 
 # Download a page from Wikidot and possibly store it locally.
-# The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all of the page meta information in <saveName>.xml
+# The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all the page meta information in <saveName>.xml
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
 def DownloadPage(fancy, wikiPagename: str, pageData: Optional[dict]) -> bool:
