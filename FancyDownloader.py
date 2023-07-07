@@ -78,14 +78,20 @@ def main():
     Log("Download list of all pages from the wiki")
     wikiPnames=[]
     for ns in fancy.namespaces:
-        if ns < 0:
+        # Note that the namespaces are integers, and negative namespaces may be ignored
+        if ns < 0 or ns == 6:       #TODO: NS 6 is File:  We need to be able to download it.
             continue
-        for page in fancy.allpages(namespace=ns):
-            # Split on the first colon into namespace and page name
-            sv=str(page).strip("[]")  # Drop leading and trailing square brackets
-            assert sv.find(":") > 0
-            parts=sv.split(":", 1)
-            wikiPnames.append(parts[1])
+        Log(f"Trying Namespace {ns}: {fancy.namespaces[ns].canonical_name}")
+        try:
+            for page in fancy.allpages(namespace=ns):
+                # Split on the first colon into namespace and page name
+                sv=str(page).strip("[]")  # Drop leading and trailing square brackets
+                assert sv.find(":") > 0
+                parts=sv.split(":", 1)
+                wikiPnames.append(parts[1])
+        except Exception as e:
+            assert True
+        Log(f"Namespace {ns} complete. Count of pages={len(wikiPnames)}")
     s=f"   Number of pages on wiki: {len(wikiPnames)}"
     Log(s)
     report+=s+"\n"
@@ -374,6 +380,7 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
         assert len(filename) == 2
         pywikibot.FilePage(fancy, filename[1]).download(filename[1])
         Log("       "+filename[1]+" downloaded")
+
 
     return True
 
