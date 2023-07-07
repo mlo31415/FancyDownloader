@@ -115,7 +115,7 @@ def main():
             tempDict[pagename]=p
 
     # Recreate the listOfAllWikiPages from the de-duped dictionary
-    recentWikiPages=list(tempDict.values())
+    recentWikiPages: list[dict]=list(tempDict.values())
     Log("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
 
     # Some members of this list are wiki pages referred to in the wiki which have not been created.
@@ -155,7 +155,7 @@ def main():
     Log("    There are "+str(len(localFilenames))+" pages which are in the local copy")
 
     # Create a list of all file names that have one or the other but not both.
-    partialLocalFilenames=list(set(localFilenamesTxt)^set(localFilenamesXml))  # Symmetric difference yields list of partial local copies of pages
+    partialLocalFilenames: list[str]=list(set(localFilenamesTxt)^set(localFilenamesXml))  # Symmetric difference yields list of partial local copies of pages
     partialLocalFilenames=[p for p in partialLocalFilenames if not p.startswith("Log 202")]  # Ignore log files that find there way here
     if len(partialLocalFilenames) == 0:
         Log("    There are no partial page downloads")
@@ -168,9 +168,9 @@ def main():
 
     # Figure out what pages are missing from the local copy and download them.
     # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
-    localPagenamesSet=set([WindowsFilenameToWikiPagename(val) for val in localFilenames])
-    wikiPagenamesSet=set(wikiPagenames)
-    missingLocalPagenames=list(wikiPagenamesSet-localPagenamesSet)
+    localPagenamesSet: set[str]=set([WindowsFilenameToWikiPagename(val) for val in localFilenames])
+    wikiPagenamesSet: set[str]=set(wikiPagenames)
+    missingLocalPagenames: list[str]=list(wikiPagenamesSet-localPagenamesSet)
     s=f"   There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
     Log(s)
     report+=s+"\n"
@@ -226,7 +226,7 @@ def main():
 
     # Optionally, force the download of pages
 
-    forcedWikiDownloadsPagenames=[]
+    forcedWikiDownloadsPagenames: list[str]=[]
     # forcedWikiDownloads=[x for x in wikiPagenames if "a" in x or "e" in x or "i" in x or "o" in x or "u" in x ]
     if len(forcedWikiDownloadsPagenames) > 0:
         Log("Begin forced downloading of pages...")
