@@ -64,8 +64,8 @@ def main():
     #     del nodupes, x
     #     Log("Downloading override pages...")
     #     countDownloadedPages=0
-    #     for pageName in override:
-    #         if DownloadPage(fancy, pageName, None):
+    #     for wikiPagename in override:
+    #         if DownloadPage(fancy, wikiPagename, None):
     #             countDownloadedPages+=1
     #     exit()
 
@@ -76,7 +76,7 @@ def main():
     # Note also that this list will contain pages that have been *deleted* on the wiki
     report: str=""
     Log("Download list of all pages from the wiki")
-    wikiPnames=[]
+    wikiPagenames: list[str]=[]
     for ns in fancy.namespaces:
         # Note that the namespaces are integers, and negative namespaces may be ignored
         if ns < 0 or ns == 6:       #TODO: NS 6 is File:  We need to be able to download it.
@@ -88,18 +88,18 @@ def main():
                 sv=str(page).strip("[]")  # Drop leading and trailing square brackets
                 assert sv.find(":") > 0
                 parts=sv.split(":", 1)
-                wikiPnames.append(parts[1])
+                wikiPagenames.append(parts[1])
         except Exception as e:
             assert True
-        Log(f"Namespace {ns} complete. Count of pages={len(wikiPnames)}")
-    s=f"   Number of pages on wiki: {len(wikiPnames)}"
+        Log(f"Namespace {ns} complete. Count of pages={len(wikiPagenames)}")
+    s=f"   Number of pages on wiki: {len(wikiPagenames)}"
     Log(s)
     report+=s+"\n"
 
     Log("Download list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
     current_time=fancy.server_time()
     iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(hours=600000))  # Not for all time, just for the last 3 months...
-    recentWikiPages=[]
+    recentWikiPages: list[dict]=[]
     for v in iterator:
         recentWikiPages.append(v)
 
@@ -108,18 +108,19 @@ def main():
 
     # Get rid of the older instances of each page.
     # Use a dictionary which only contains the latest version
-    tempDict={}
+    tempDict: dict[str, dict]={}
     for p in recentWikiPages:
-        pname=p["title"]
-        if pname not in tempDict.keys() or p["timestamp"] > tempDict[pname]["timestamp"]:
-            tempDict[pname]=p
+        pagename=p["title"]
+        if pagename not in tempDict.keys() or p["timestamp"] > tempDict[pagename]["timestamp"]:
+            tempDict[pagename]=p
 
     # Recreate the listOfAllWikiPages from the de-duped dictionary
     recentWikiPages=list(tempDict.values())
+    Log("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
 
     # Some members of this list are wiki pages referred to in the wiki which have not been created.
-    emptyWikiPnames=[val for val in recentWikiPages if val["newlen"] == 0]
-    Log("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
+    emptyWikiPagenames=[val for val in recentWikiPages if val["newlen"] == 0]
+    Log("   There are "+str(len(emptyWikiPagenames))+" empty wiki pages")
 
     # Sort the list of all pages by timestamp
     def sorttime(page):
@@ -129,15 +130,15 @@ def main():
     Log("   The oldest page change listed is "+str(recentWikiPages[-1]["timestamp"]))
 
     # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
-    uncreatedWikiPnames=[val["title"] for val in recentWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
-    s=f"   There are {len(uncreatedWikiPnames)} recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored"
+    uncreatedWikiPagenames=[val["title"] for val in recentWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
+    s=f"   There are {len(uncreatedWikiPagenames)} recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored"
     Log(s)
     report+=s+"\n"
 
-    recentWikiPnames=[val["title"] for val in recentWikiPages]
-    createdWikiPnamesSet=set(recentWikiPnames)-set(uncreatedWikiPnames)
-    createdWikiPnames=list(createdWikiPnamesSet)
-    s=f"   There are {len(createdWikiPnames)} recent pages that exist on the wiki"
+    recentWikiPagenames=[val["title"] for val in recentWikiPages]
+    createdWikiPagenamesSet=set(recentWikiPagenames)-set(uncreatedWikiPagenames)
+    createdWikiPagenames=list(createdWikiPagenamesSet)
+    s=f"   There are {len(createdWikiPagenames)} recent pages that exist on the wiki"
     Log(s)
     report+=s+"\n"
 
@@ -146,48 +147,48 @@ def main():
     # Since all local copies of pages must have a .txt file, listOfAllDirPages will contain the file name of each page (less the extension)
     # So we want a list of just those names stripped of the extension
     # We also have to back-convert the filenames to get rid of the ;xxxx; that we used to replace certain special characters.
-    localFnamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
-    localFnamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
+    localFilenamesTxt=[p[:-4] for p in os.listdir(".") if p.endswith(".txt")]
+    localFilenamesXml=[p[:-4] for p in os.listdir(".") if p.endswith(".xml")]
 
     # Create a list of all file names that have *both* .txt and .xml files
-    localFnames=list(set(localFnamesTxt)&set(localFnamesXml))  # Union of set of names of xml files and set of names of txt files yields all pages, partial and complete
-    Log("    There are "+str(len(localFnames))+" pages which are in the local copy")
+    localFilenames=list(set(localFilenamesTxt)&set(localFilenamesXml))  # Union of set of names of xml files and set of names of txt files yields all pages, partial and complete
+    Log("    There are "+str(len(localFilenames))+" pages which are in the local copy")
 
     # Create a list of all file names that have one or the other but not both.
-    partialLocalFnames=list(set(localFnamesTxt)^set(localFnamesXml))  # Symmetric difference yields list of partial local copies of pages
-    partialLocalFnames=[p for p in partialLocalFnames if not p.startswith("Log 202")]  # Ignore log files that find there way here
-    if len(partialLocalFnames) == 0:
+    partialLocalFilenames=list(set(localFilenamesTxt)^set(localFilenamesXml))  # Symmetric difference yields list of partial local copies of pages
+    partialLocalFilenames=[p for p in partialLocalFilenames if not p.startswith("Log 202")]  # Ignore log files that find there way here
+    if len(partialLocalFilenames) == 0:
         Log("    There are no partial page downloads")
     else:
-        s=f"   There are {len(partialLocalFnames)} partial page downloads required"
+        s=f"   There are {len(partialLocalFilenames)} partial page downloads required"
         Log(s)
         report+=s+"\n"
-        for pname in partialLocalFnames:
+        for pname in partialLocalFilenames:
             DownloadPage(fancy, pname, None)
 
     # Figure out what pages are missing from the local copy and download them.
     # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
-    localPnamesSet=set([WindowsFilenameToWikiPagename(val) for val in localFnames])
-    wikiPnamesSet=set(wikiPnames)
-    missingLocalPnames=list(wikiPnamesSet-localPnamesSet)
-    s=f"   There are {len(missingLocalPnames)} pages which are on the wiki but not in the local copy."
+    localPagenamesSet=set([WindowsFilenameToWikiPagename(val) for val in localFilenames])
+    wikiPagenamesSet=set(wikiPagenames)
+    missingLocalPagenames=list(wikiPagenamesSet-localPagenamesSet)
+    s=f"   There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
     Log(s)
     report+=s+"\n"
 
     # TODO: Really ought to take into account changes with "logtype" == delete, as those are deletions, not updates
-    deletedWikiPnames=list(localPnamesSet-wikiPnamesSet)
-    Log(f"There are {len(deletedWikiPnames)} pages which are in the local copy, but not on the wiki.")
+    deletedWikiPagenames=list(localPagenamesSet-wikiPagenamesSet)
+    Log(f"There are {len(deletedWikiPagenames)} pages which are in the local copy, but not on the wiki.")
 
     # Download pages which exist in the website but not in the disk copy
     Log("Downloading missing pages...")
     countMissingPages=0
     countStillMissingPages=0
-    if len(missingLocalPnames) == 0:
+    if len(missingLocalPagenames) == 0:
         s="   There are no missing pages"
         Log(s)
         report+=s+"\n"
     else:
-        for pname in missingLocalPnames:
+        for pname in missingLocalPagenames:
             if DownloadPage(fancy, pname, None):
                 countMissingPages+=1
             else:
@@ -205,13 +206,13 @@ def main():
     # This is used to handle cases where the downloading and comparison process has been interrupted before updating all changed pages.
     # In that case there will be a wodge of up-to-date recently-changed pages before the pages that were past the interruption.
     # StoppingCriterion needs to be big enough to get past that wodge.
-    stoppingCriterion=500
+    stoppingCriterion=67000
     Log("Downloading recently updated pages...")
     countUpToDatePages=0
     countDownloadedPages=0
     for page in recentWikiPages:
         pageName=page["title"]
-        if pageName in createdWikiPnamesSet:
+        if pageName in createdWikiPagenamesSet:
             if DownloadPage(fancy, pageName, page):
                 countDownloadedPages+=1
             else:
@@ -225,15 +226,14 @@ def main():
 
     # Optionally, force the download of pages
 
-    forcedWikiDownloads=[]
-    # forcedWikiDownloads=[x for x in wikiPnames if "a" in x or "e" in x or "i" in x or "o" in x or "u" in x ]
-    if len(forcedWikiDownloads) > 0:
-        Log("Forced downloading of pages...")
+    forcedWikiDownloadsPagenames=[]
+    # forcedWikiDownloads=[x for x in wikiPagenames if "a" in x or "e" in x or "i" in x or "o" in x or "u" in x ]
+    if len(forcedWikiDownloadsPagenames) > 0:
+        Log("Begin forced downloading of pages...")
         countForcedPages=0
         countStillMissingPages=0
-        forcedLocalPnames=[x for x in forcedWikiDownloads]
-        for pname in forcedLocalPnames:
-            if DownloadPage(fancy, pname, None):
+        for pagename in forcedWikiDownloadsPagenames:
+            if DownloadPage(fancy, pagename, None):
                 countForcedPages+=1
             else:
                 countStillMissingPages+=1
@@ -246,9 +246,9 @@ def main():
     Log("Removing deleted pages...")
     countOfDeletedPages=0
     countOfUndeletedPages=0
-    if len(deletedWikiPnames) == 0:
+    if len(deletedWikiPagenames) == 0:
         Log("   There are no pages to delete")
-    for pname in deletedWikiPnames:
+    for pname in deletedWikiPagenames:
         fname=WikiPagenameToWindowsFilename(pname)
         Log("   Removing: "+pname+" as "+fname, noNewLine=True)
         deleted=False
@@ -325,10 +325,10 @@ def DecodeDatetime(dtstring: str) -> datetime:
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all of the page meta information in <saveName>.xml
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
-def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
-    pname=WikiPagenameToWindowsFilename(pageName)   # Get the windows filesystem compatible versions of the pagename
+def DownloadPage(fancy, wikiPagename: str, pageData: Optional[dict]) -> bool:
+    localFilename=WikiPagenameToWindowsFilename(wikiPagename)   # Get the windows filesystem compatible versions of the pagename
 
-    # If we set updateAll to True, then we skip the date checks and always do the update
+    # If we set updateAll to True, then we skip the date che    cks and always do the update
     action="Downloading"
     if pageData is not None:
         action="Updating"
@@ -337,9 +337,9 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
         # Check the timestamps and only update if the page on the server is newer than the local copy
 
         # Get the updated time for the local version
-        if os.path.isfile(pname+".xml"):
+        if os.path.isfile(localFilename+".xml"):
             # If no xml file exists, we want to do the download, since the local copy is missing or incomplete
-            tree=ET.parse(pname+".xml")
+            tree=ET.parse(localFilename+".xml")
             doc=tree.getroot()
             localTimestamp=doc.find("timestamp").text
 
@@ -351,35 +351,34 @@ def DownloadPage(fancy, pageName: str, pageData: Optional[dict]) -> bool:
                 return False
 
     # OK, we're going to download this one
-    if pageName == pname:
-        Log("   "+action+": '"+pageName+"'")
+    if wikiPagename == localFilename:
+        Log("   "+action+": '"+wikiPagename+"'")
     else:
-        Log("   "+action+": '"+pageName+"' as '"+pname+"'")
+        Log("   "+action+": '"+wikiPagename+"' as '"+localFilename+"'")
 
-    page=pywikibot.Page(fancy, pageName)
+    page=pywikibot.Page(fancy, wikiPagename)
     if page.text is None or len(page.text) == 0:
-        Log("       empty page: "+pageName)
+        Log("       empty page: "+wikiPagename)
 
-    # Write the page source to <pageName>.txt
+    # Write the page source to <wikiPagename>.txt
     text=page.text
     if text is not None:
-        with open(pname+".txt", "wb") as file:
+        with open(localFilename+".txt", "wb") as file:
             file.write(text.encode("utf8"))
     else:
         # If there's no text, delete any existing txt file
-        if os.path.exists(pname+".txt"):
-            os.remove(pname+".txt")
+        if os.path.exists(localFilename+".txt"):
+            os.remove(localFilename+".txt")
 
-    # Write the page's metadata to <pageName>.xml
-    SaveMetadata(pname+".xml", page)
+    # Write the page's metadata to <wikiPagename>.xml
+    SaveMetadata(localFilename+".xml", page)
 
     # Is this a file?
     if page.is_filepage():
         # Then download it.
-        filename=pageName.split(":")
-        assert len(filename) == 2
-        pywikibot.FilePage(fancy, filename[1]).download(filename[1])
-        Log("       "+filename[1]+" downloaded")
+        _, filename=wikiPagename.split(":")
+        pywikibot.FilePage(fancy, filename).download(filename)
+        Log("       "+filename+" downloaded")
 
 
     return True
