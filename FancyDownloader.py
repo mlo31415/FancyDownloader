@@ -217,7 +217,7 @@ def main():
                 countDownloadedPages+=1
             else:
                 countUpToDatePages+=1
-                if stoppingCriterion > 0 and countUpToDatePages > stoppingCriterion:
+                if 0 < stoppingCriterion < countUpToDatePages:
                     s=f"   {countDownloadedPages} updated pages downloaded"
                     Log(s)
                     report+=s+"\n"
