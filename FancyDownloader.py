@@ -227,7 +227,7 @@ def main():
     # Optionally, force the download of pages
 
     forcedWikiDownloadsPagenames: list[str]=[]
-    # forcedWikiDownloads=[x for x in wikiPagenames if "a" in x or "e" in x or "i" in x or "o" in x or "u" in x ]
+    # forcedWikiDownloadsPagenames=[x for x in wikiPagenames if "a" in x or "e" in x or "i" in x or "o" in x or "u" in x ]
     if len(forcedWikiDownloadsPagenames) > 0:
         Log("Begin forced downloading of pages...")
         countForcedPages=0
