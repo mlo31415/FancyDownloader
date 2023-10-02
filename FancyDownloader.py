@@ -1,5 +1,5 @@
 #
-# Program to download an entire wiki (except for history) from Wikidot and then to keep it synchronized.
+# Program to download an entire wiki (except for history) from Mediawiki and then to keep it synchronized.
 # The wiki is downloaded to a directory.  Each wiki page generates two files and possibly a directory:
 #     <page>.txt containing the source of the page
 #     <page>.xml containing the metadata of the page
@@ -14,10 +14,6 @@
 #    The next step is to compare the list of all local .txt files with the list of all pages, and to download any which are missing.
 #          (Note that this does not deal with deleted .xml files or deleted attached files.  This fairly cheap to check, so it might be a useful enhancement.)
 #    The final step is to look for local .txt files which are not on the wiki.  These will typically be files which have been deleted on the wiki.  They are deleted locally.
-
-# The wiki to be synced and the credentials are stored in a file url.txt.  It contains a single line of text of the form:
-#      https://fancyclopedia:rdS...80g@www.wikidot.com/xml-rpc-api.php
-# where 'fancyclopedia' is the wiki and 'rdS...80g' is the access key
 
 # The synced wiki will be put into a directory 'site' one level up from the Python code.
 
@@ -321,7 +317,7 @@ def DecodeDatetime(dtstring: str) -> datetime:
     return datetime.datetime.strptime(dtstring[:-6], '%Y-%m-%dT%H:%M:%S')
 
 
-# Download a page from Wikidot and possibly store it locally.
+# Download a page from Mediawiki and possibly store it locally.
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all the page meta information in <saveName>.xml
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
