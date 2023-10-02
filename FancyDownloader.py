@@ -391,7 +391,7 @@ def SaveMetadata(localName: str, pageData: pywikibot.page) -> None:
     ET.SubElement(root, "numrevisions").text=str(len(pageData._revisions))
     ET.SubElement(root, "pageid").text=str(pageData.pageid)
     ET.SubElement(root, "revid").text=str(pageData._revid)
-    ET.SubElement(root, "edittime").text=str(pageData.editTime())
+    ET.SubElement(root, "edittime").text=str(pageData.latest_revision.timestamp)
     ET.SubElement(root, "permalink").text=str(pageData.permalink())
 
     ET.SubElement(root, "categories").text=str([c for c in pageData.categories()])
