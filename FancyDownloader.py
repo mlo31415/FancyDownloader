@@ -152,7 +152,7 @@ def main():
 
     # Create a list of all file names that have one or the other but not both.
     partialLocalFilenames: list[str]=list(set(localFilenamesTxt)^set(localFilenamesXml))  # Symmetric difference yields list of partial local copies of pages
-    partialLocalFilenames=[p for p in partialLocalFilenames if not p.startswith("Log 202")]  # Ignore log files that find there way here
+    partialLocalFilenames=[p for p in partialLocalFilenames if (not p.startswith("Log 202") and not p.startswith("Error 202"))]  # Ignore log files that find there way here
     if len(partialLocalFilenames) == 0:
         Log("    There are no partial page downloads")
     else:
@@ -167,7 +167,7 @@ def main():
     localPagenamesSet: set[str]=set([WindowsFilenameToWikiPagename(val) for val in localFilenames])
     wikiPagenamesSet: set[str]=set(wikiPagenames)
     missingLocalPagenames: list[str]=list(wikiPagenamesSet-localPagenamesSet)
-    s=f"   There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
+    s=f"    There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
     Log(s)
     report+=s+"\n"
 
