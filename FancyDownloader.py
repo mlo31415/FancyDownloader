@@ -23,7 +23,6 @@ import xml.etree.ElementTree as ET
 import os
 import datetime
 from datetime import timedelta
-from typing import Optional
 
 from Log import Log, LogOpen
 from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiPagename
@@ -276,7 +275,7 @@ def main():
 # Find text bracketed by <b>...</b>
 # Input is of the form <b stuff>stuff</b>stuff
 # Return the contents of the first pair of brackets found, the remainder of the input string up to </b>, and anything leftover afterwards (the three stuffs)
-def FindBracketedText(s: str, b: str) -> Optional[tuple[str, str,str]]:
+def FindBracketedText(s: str, b: str) -> tuple[str, str,str]|None:
     strlower=s.lower()
     # Find <b ...>
     l1=strlower.find("<"+b.lower()) # Look for <b
@@ -300,7 +299,7 @@ def FindBracketedText(s: str, b: str) -> Optional[tuple[str, str,str]]:
 # Function to pull an href and accompanying text from a Tag
 # The structure is "<a href='URL'>LINKTEXT</a>
 # We want to extract the URL and LINKTEXT
-def GetHrefAndTextFromString(s: str) -> tuple[Optional[str], Optional[str]]:
+def GetHrefAndTextFromString(s: str) -> tuple[str|None, str|None]:
     s=FindBracketedText(s, "a")
     if s[0] == "":
         return None, None
@@ -321,7 +320,7 @@ def DecodeDatetime(dtstring: str) -> datetime:
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all the page meta information in <saveName>.xml
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
-def DownloadPage(fancy, wikiPagename: str, pageData: Optional[dict]) -> bool:
+def DownloadPage(fancy, wikiPagename: str, pageData: dict|None) -> bool:
     localFilename=WikiPagenameToWindowsFilename(wikiPagename)   # Get the windows filesystem compatible versions of the pagename
 
     # If we set updateAll to True, then we skip the date che    cks and always do the update
