@@ -112,11 +112,7 @@ def main():
     # Recreate the listOfAllWikiPages from the de-duped dictionary
     recentWikiPages: list[dict]=list(tempDict.values())
     Log("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
-
-    # Some members of this list are wiki pages referred to in the wiki which have not been created.
-    emptyWikiPagenames=[val for val in recentWikiPages if val["newlen"] == 0]
-    Log("   There are "+str(len(emptyWikiPagenames))+" empty wiki pages")
-
+Duplicate function -- we do this again, later
     # Sort the list of all pages by timestamp
     def sorttime(page):
         return page["timestamp"]
