@@ -127,8 +127,7 @@ def main():
     report+=s+"\n"
 
     recentWikiPagenames=[val["title"] for val in recentWikiPages]
-    createdWikiPagenamesSet=set(recentWikiPagenames)-set(uncreatedWikiPagenames)
-    createdWikiPagenames=list(createdWikiPagenamesSet)
+    createdWikiPagenames=list(set(recentWikiPagenames)-set(uncreatedWikiPagenames))
     s=f"   There are {len(createdWikiPagenames)} recent pages that exist on the wiki"
     Log(s)
     report+=s+"\n"
@@ -203,7 +202,7 @@ def main():
     countDownloadedPages=0
     for page in recentWikiPages:
         pageName=page["title"]
-        if pageName in createdWikiPagenamesSet:
+        if pageName in createdWikiPagenames:
             if DownloadPage(fancy, pageName, page):
                 countDownloadedPages+=1
             else:
