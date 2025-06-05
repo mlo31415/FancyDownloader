@@ -232,12 +232,14 @@ def main():
 
     # Delete local copies of pages which have disappeared from the wiki
     # Note that we don't detect and delete local copies of attached files which have been removed from the wiki when the associated wiki page remains.
-    Log("Removing deleted pages...")
-    countOfDeletedPages=0
-    countOfUndeletedPages=0
+
+
     if len(deletedWikiPagenames) == 0:
-        Log("   There are no pages to delete")
+        Log("There are no deleted pages to remove")
     else:
+        Log("Removing deleted pages...")
+        countOfDeletedPages=0
+        countOfUndeletedPages=0
         for pname in deletedWikiPagenames:
             fname=WikiPagenameToWindowsFilename(pname)
             Log("   Removing: "+pname+" as "+fname, noNewLine=True)
@@ -257,9 +259,9 @@ def main():
                 countOfUndeletedPages+=1
                 Log("   ( files could not be found)")
 
-    s=f"   {countOfDeletedPages} deleted pages removed    {countOfUndeletedPages} could not be found"
-    Log(s)
-    report+=s+"\n"
+        s=f"   {countOfDeletedPages} deleted pages removed    {countOfUndeletedPages} could not be found"
+        Log(s)
+        report+=s+"\n"
 
     Log("Done")
 
