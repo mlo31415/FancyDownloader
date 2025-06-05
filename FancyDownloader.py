@@ -230,8 +230,8 @@ def main():
         Log(s)
         report+=s+"\n"
 
-    # And delete local copies of pages which have disappeared from the wiki
-    # Note that we don't detect and delete local copies of attached files which have been removed from the wiki where the wiki page remains.
+    # Delete local copies of pages which have disappeared from the wiki
+    # Note that we don't detect and delete local copies of attached files which have been removed from the wiki when the associated wiki page remains.
     Log("Removing deleted pages...")
     countOfDeletedPages=0
     countOfUndeletedPages=0
