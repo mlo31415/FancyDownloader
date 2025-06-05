@@ -214,10 +214,9 @@ def main():
                     Log("      Ending downloads. "+str(stoppingCriterion)+" up-to-date pages found")
                     break
 
-    # Optionally, force the download of pages
-
+    # Optionally, force the download of pages by adding them to forcedWikiDownloadsPagenames
+    # E.g., forcedWikiDownloadsPagenames=[x for x in wikiPagenames if x.lower()[0] == 'v']
     forcedWikiDownloadsPagenames: list[str]=[]
-    # forcedWikiDownloadsPagenames=[x for x in wikiPagenames if x.lower()[0] == 'v']
     if len(forcedWikiDownloadsPagenames) > 0:
         Log("Begin forced downloading of pages...")
         countForcedPages=0
