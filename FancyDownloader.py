@@ -24,6 +24,8 @@ import os
 import datetime
 from datetime import timedelta
 
+from pywikibot.exceptions import NoPageError
+
 from Log import Log, LogOpen
 from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiPagename
 
@@ -363,7 +365,12 @@ def DownloadPage(fancy, wikiPagename: str, pageData: dict|None) -> bool:
             os.remove(localFilename+".txt")
 
     # Write the page's metadata to <wikiPagename>.xml
-    SaveMetadata(localFilename+".xml", page)
+    try:
+        SaveMetadata(localFilename+".xml", page)
+    except NoPageError as s:
+        if "Fancyclopedia 3:" not in str(s):
+            return False
+        Log(f"Ignored: NoPageError '{s}'")
 
     # Is this a file?
     if page.is_filepage():
