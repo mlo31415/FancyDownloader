@@ -237,24 +237,25 @@ def main():
     countOfUndeletedPages=0
     if len(deletedWikiPagenames) == 0:
         Log("   There are no pages to delete")
-    for pname in deletedWikiPagenames:
-        fname=WikiPagenameToWindowsFilename(pname)
-        Log("   Removing: "+pname+" as "+fname, noNewLine=True)
-        deleted=False
-        if os.path.isfile(fname+".xml"):
-            os.remove(fname+".xml")
-            Log(" (.xml)", noNewLine=True)
-            deleted=True
-        if os.path.isfile(fname+".txt"):
-            os.remove(fname+".txt")
-            Log(" (.txt)", noNewLine=True)
-            deleted=True
-        if deleted:
-            countOfDeletedPages+=1
-            Log("  ...gone!")
-        else:
-            countOfUndeletedPages+=1
-            Log("   ( files could not be found)")
+    else:
+        for pname in deletedWikiPagenames:
+            fname=WikiPagenameToWindowsFilename(pname)
+            Log("   Removing: "+pname+" as "+fname, noNewLine=True)
+            deleted=False
+            if os.path.isfile(fname+".xml"):
+                os.remove(fname+".xml")
+                Log(" (.xml)", noNewLine=True)
+                deleted=True
+            if os.path.isfile(fname+".txt"):
+                os.remove(fname+".txt")
+                Log(" (.txt)", noNewLine=True)
+                deleted=True
+            if deleted:
+                countOfDeletedPages+=1
+                Log("  ...gone!")
+            else:
+                countOfUndeletedPages+=1
+                Log("   ( files could not be found)")
 
     s=f"   {countOfDeletedPages} deleted pages removed    {countOfUndeletedPages} could not be found"
     Log(s)
