@@ -154,7 +154,7 @@ def main():
         Log(s)
         report+=s+"\n"
         for pname in partialLocalFilenames:
-            DownloadPage(fancy, pname, None)
+            DownloadPage(fancy, WindowsFilenameToWikiPagename(pname), None)
 
     # Figure out what pages are missing from the local copy and download them.
     # We do this because we may have at some point failed to make a local copy of a new page.  If it's never updated, it'll never be picked up by the recent changes code.
