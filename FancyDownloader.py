@@ -198,7 +198,7 @@ def main():
     # This is used to handle cases where the downloading and comparison process has been interrupted before updating all changed pages.
     # In that case there will be a wodge of up-to-date recently-changed pages before the pages that were past the interruption.
     # StoppingCriterion needs to be big enough to get past that wodge.
-    stoppingCriterion=500
+    stoppingCriterion=2500
     Log("Downloading recently updated pages...")
     countUpToDatePages=0
     countDownloadedPages=0
