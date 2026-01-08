@@ -95,7 +95,7 @@ def main():
 
     Log("Download list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
     current_time=fancy.server_time()
-    iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(hours=600000))  # Not for all time, just for the last 3 months...
+    iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(hours=600_000))  # Not for all time, just for the last 3 months...
     recentWikiPages: list[dict]=[]
     for v in iterator:
         recentWikiPages.append(v)
@@ -163,7 +163,7 @@ def main():
     localPagenamesSet: set[str]=set([WindowsFilenameToWikiPagename(val) for val in localFilenames])
     wikiPagenamesSet: set[str]=set(wikiPagenames)
     missingLocalPagenames: list[str]=list(wikiPagenamesSet-localPagenamesSet)
-    s=f"    There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
+    s=f"   There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
     Log(s)
     report+=s+"\n"
 
@@ -210,8 +210,7 @@ def main():
             else:
                 countUpToDatePages+=1
                 if 0 < stoppingCriterion < countUpToDatePages:
-                    s=f"   {countDownloadedPages} updated pages downloaded"
-                    Log(s)
+                    Log(f"   {countDownloadedPages} updated pages downloaded")
                     report+=s+"\n"
                     Log("      Ending downloads. "+str(stoppingCriterion)+" up-to-date pages found")
                     break
@@ -369,6 +368,7 @@ def DownloadPage(fancy, wikiPagename: str, pageData: dict|None) -> bool:
         SaveMetadata(localFilename+".xml", page)
     except NoPageError as s:
         if "Fancyclopedia 3:" not in str(s):
+            Log(f"SaveMetaData('{localFilename+".xml"}') failed with a NoPageError exception: '{s}'")
             return False
         Log(f"Ignored: NoPageError '{s}'")
 
