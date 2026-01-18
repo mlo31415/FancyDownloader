@@ -306,7 +306,7 @@ def GetHrefAndTextFromString(s: str) -> tuple[str|None, str|None]:
     return s[0][6:-1], s[1]
 
 
-def DecodeDatetime(dtstring: str) -> datetime:
+def DecodeDatetime(dtstring: str) -> datetime.datetime:
     if dtstring is None:
         return datetime.datetime(1950, 1, 1, 1, 1, 1)    # If there's no datetime, return something early
     if not dtstring.endswith("+00:00"):
@@ -384,7 +384,7 @@ def DownloadPage(fancy, wikiPagename: str, pageData: dict|None) -> bool:
 
 
 # Save the wiki page's metadata to an xml file
-def SaveMetadata(localName: str, pageData: pywikibot.page) -> None:
+def SaveMetadata(localName: str, pageData: pywikibot.Page) -> None:
     root = ET.Element("data")
 
     ET.SubElement(root, "title").text=str(pageData.title())
