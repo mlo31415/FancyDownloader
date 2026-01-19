@@ -86,7 +86,7 @@ def main():
                 assert sv.find(":") > 0
                 parts=sv.split(":", 1)
                 wikiPagenames.append(parts[1])
-        except Exception as e:
+        except Exception:
             assert True
         Log(f"Namespace {ns} complete. Count of pages={len(wikiPagenames)}")
     s=f"   Number of pages on wiki: {len(wikiPagenames)}"
