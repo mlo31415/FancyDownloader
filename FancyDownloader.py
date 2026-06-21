@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 import os
 import datetime
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from pywikibot.exceptions import NoPageError
 
@@ -37,17 +38,45 @@ def main():
     # This opens the site specified by user-config.py with the credential in user-password.py.
     fancy=pywikibot.Site()
 
-    # Change the working directory to the destination of the downloaded wiki
+    # Change the working directory to the destination of the downloaded wiki.
+    # This runs before LogOpen (the log lives inside 'site'), so a failure here can't be logged --
+    # instead pop up a dialog so the problem is visible rather than dying with a silent traceback.
     cwd=os.getcwd()
     path=os.path.join(cwd, "..\\site")
-    os.chdir(path)
-    os.chmod(path, 0o777)
+    try:
+        os.chdir(path)
+        os.chmod(path, 0o777)
+        # File: pages (photos and other uploads) are stored under this subdirectory of the site
+        os.makedirs("Files", exist_ok=True)
+    except OSError as e:
+        from tkinter import Tk, messagebox
+        root=Tk()
+        root.withdraw()
+        messagebox.showerror("FancyDownloader: cannot open site directory",
+            f"Could not set up the download directory:\n\n    {path}\n\n{type(e).__name__}: {e}\n\n"
+            "Make sure the 'site' folder exists one level up from the code and is writable.")
+        root.destroy()
+        return
     del path
 
     LogOpen("Log", "Error", dated=True)
 
+    # Forced (re)download modes -- independent of each other:
+    #   downloadAllPages -> (re)download every non-File page on the wiki (a full rebuild of the main local copy).
+    #   downloadAllFiles -> (re)download every File: page (photos etc.) into Files/.
+    # Leave both False for routine incremental syncing, where only changed/missing pages are fetched.
+    downloadAllPages=False
+    downloadAllFiles=False
+    if downloadAllPages:
+        Log("*** downloadAllPages is True: every non-File page will be (re)downloaded -- expect a large, slow run.")
+    if downloadAllFiles:
+        Log("*** downloadAllFiles is True: every File: page (photo) will be (re)downloaded -- expect a large, slow bulk download. Set it to False once the initial download is complete.")
+
     # Look for a file called "override.txt" -- if it exists, load those pages and do nothing else.
     # Override.txt contains a list of page names, one name per line.
+    #
+    # NOTE NOTE NOTE: Review this carefully before using, as the rest of the code has evolved!
+    #
     # if os.path.exists("../FancyDownloader/override.txt"):
     #     with open("../FancyDownloader/override.txt", "r") as file:
     #         override=file.readlines()
@@ -71,9 +100,15 @@ def main():
     # We'll then get rid of all but the most recent modification of each page.
     # Note that we're using the recentchanges() call because the allpages() call doesn't return date of update.
     # Note also that this list will contain pages that have been *deleted* on the wiki
-    report: str=""
+    # Totals are collected here as they're logged, then reprinted together as a single block at the end.
+    summary: list[str]=[]
+    def Total(line: str, isError: bool=False):
+        Log(line, isError=isError)
+        summary.append(line)
+
     Log("Download list of all pages from the wiki")
     wikiPagenames: list[str]=[]
+    wikiListComplete=True       # Cleared if any namespace fails to download fully; we then skip deletions to avoid removing pages that still exist
     for ns in fancy.namespaces:
         # Note that the namespaces are integers, and negative namespaces may be ignored
         if ns < 0 or ns == 6:       #TODO: NS 6 is File:  We need to be able to download it.
@@ -86,21 +121,20 @@ def main():
                 assert sv.find(":") > 0
                 parts=sv.split(":", 1)
                 wikiPagenames.append(parts[1])
-        except Exception:
-            assert True
+        except Exception as e:
+            wikiListComplete=False
+            Log(f"   ***Exception while listing namespace {ns}: {e}", isError=True)
         Log(f"Namespace {ns} complete. Count of pages={len(wikiPagenames)}")
-    s=f"   Number of pages on wiki: {len(wikiPagenames)}"
-    Log(s)
-    report+=s+"\n"
+    Total(f"   Number of pages on wiki: {len(wikiPagenames)}")
 
-    Log("Download list of recent pages (those updated in the last 90 days), sorted from most- to least-recently-updated")
+    Log("Download list of recent pages (those updated in the last 120 days), sorted from most- to least-recently-updated")
     current_time=fancy.server_time()
-    iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(hours=600_000))  # Not for all time, just for the last 3 months...
+    iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(days=120))  # Not for all time, just for the last 120 days
     recentWikiPages: list[dict]=[]
     for v in iterator:
         recentWikiPages.append(v)
 
-    Log(f"   Downloaded list of changes includes {len(recentWikiPages)} items")
+    Total(f"   Downloaded list of changes includes {len(recentWikiPages)} items")
     # allWikiPages=[val for val in allWikiPages if val["title"] == "Third Foundation"]
 
     # Get rid of the older instances of each page.
@@ -112,8 +146,8 @@ def main():
             tempDict[pagename]=p
 
     # Recreate the listOfAllWikiPages from the de-duped dictionary
-    recentWikiPages: list[dict]=list(tempDict.values())
-    Log("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
+    recentWikiPages=list(tempDict.values())
+    Total("   After de-duping, there are "+str(len(recentWikiPages))+" pages left")
 
     # Sort the list of all pages by timestamp
     def sorttime(page):
@@ -124,15 +158,11 @@ def main():
 
     # This list includes pages which are referred to in the wiki, but which have not been created yet.  We don't want them.
     uncreatedWikiPagenames=[val["title"] for val in recentWikiPages if val["oldlen"] == 0 and val["newlen"] == 0]
-    s=f"   There are {len(uncreatedWikiPagenames)} recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored"
-    Log(s)
-    report+=s+"\n"
+    Total(f"   There are {len(uncreatedWikiPagenames)} recent pages which are referenced on the wiki, but have not yet been created there. They will be ignored")
 
     recentWikiPagenames=[val["title"] for val in recentWikiPages]
     createdWikiPagenames=list(set(recentWikiPagenames)-set(uncreatedWikiPagenames))
-    s=f"   There are {len(createdWikiPagenames)} recent pages that exist on the wiki"
-    Log(s)
-    report+=s+"\n"
+    Total(f"   There are {len(createdWikiPagenames)} recent pages that exist on the wiki")
 
     # Get the list of pages from the local copy of the wiki and use that to create lists of missing pages and deleted pages
     Log("Creating list of local files")
@@ -144,17 +174,15 @@ def main():
 
     # Create a list of all file names that have *both* .txt and .xml files
     localFilenames=list(set(localFilenamesTxt)&set(localFilenamesXml))  # Union of set of names of xml files and set of names of txt files yields all pages, partial and complete
-    Log("    There are "+str(len(localFilenames))+" pages which are in the local copy")
+    Total("    There are "+str(len(localFilenames))+" pages which are in the local copy")
 
     # Create a list of all file names that have one or the other but not both.
     partialLocalFilenames: list[str]=list(set(localFilenamesTxt)^set(localFilenamesXml))  # Symmetric difference yields list of partial local copies of pages
     partialLocalFilenames=[p for p in partialLocalFilenames if (not p.startswith("Log 202") and not p.startswith("Error 202"))]  # Ignore log files that find there way here
     if len(partialLocalFilenames) == 0:
-        Log("    There are no partial page downloads")
+        Total("    There are no partial page downloads")
     else:
-        s=f"   There are {len(partialLocalFilenames)} partial page downloads required"
-        Log(s)
-        report+=s+"\n"
+        Total(f"   There are {len(partialLocalFilenames)} partial page downloads required")
         for pname in partialLocalFilenames:
             DownloadPage(fancy, WindowsFilenameToWikiPagename(pname), None)
 
@@ -163,31 +191,25 @@ def main():
     localPagenamesSet: set[str]=set([WindowsFilenameToWikiPagename(val) for val in localFilenames])
     wikiPagenamesSet: set[str]=set(wikiPagenames)
     missingLocalPagenames: list[str]=list(wikiPagenamesSet-localPagenamesSet)
-    s=f"   There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy."
-    Log(s)
-    report+=s+"\n"
+    Total(f"   There are {len(missingLocalPagenames)} pages which are on the wiki but not in the local copy.")
 
     # TODO: Really ought to take into account changes with "logtype" == delete, as those are deletions, not updates
     deletedWikiPagenames=list(localPagenamesSet-wikiPagenamesSet)
-    Log(f"There are {len(deletedWikiPagenames)} pages which are in the local copy, but not on the wiki.")
+    Total(f"   There are {len(deletedWikiPagenames)} pages which are in the local copy, but not on the wiki.")
 
     # Download pages which exist in the website but not in the disk copy
     Log("Downloading missing pages...")
     countMissingPages=0
     countStillMissingPages=0
     if len(missingLocalPagenames) == 0:
-        s="   There are no missing pages"
-        Log(s)
-        report+=s+"\n"
+        Total("   There are no missing pages")
     else:
         for pname in missingLocalPagenames:
             if DownloadPage(fancy, pname, None):
                 countMissingPages+=1
             else:
                 countStillMissingPages+=1
-        s=f"   {countMissingPages} missing pages downloaded     {countStillMissingPages} could not be downloaded"
-        Log(s)
-        report+=s+"\n"
+        Total(f"   {countMissingPages} missing pages downloaded     {countStillMissingPages} could not be downloaded")
 
     # Download the recently updated pages until we start finding pages we already have the most recent version of
     #
@@ -210,33 +232,111 @@ def main():
             else:
                 countUpToDatePages+=1
                 if 0 < stoppingCriterion < countUpToDatePages:
-                    Log(f"   {countDownloadedPages} updated pages downloaded")
-                    report+=s+"\n"
                     Log("      Ending downloads. "+str(stoppingCriterion)+" up-to-date pages found")
                     break
+    Total(f"   {countDownloadedPages} updated pages downloaded")
 
-    # Optionally, force the download of pages by adding them to forcedWikiDownloadsPagenames
-    # E.g., forcedWikiDownloadsPagenames=[x for x in wikiPagenames if x.lower()[0] == 'v']
-    forcedWikiDownloadsPagenames: list[str]=[]
+    # Optionally force the (re)download of non-File pages.
+    #   downloadAllPages -> force every non-File page; or hand-populate forcedWikiDownloadsPagenames for a subset, e.g. [x for x in wikiPagenames if x.lower()[0] == 'v']
+    forcedWikiDownloadsPagenames: list[str]=list(wikiPagenames) if downloadAllPages else []
     if len(forcedWikiDownloadsPagenames) > 0:
         Log("Begin forced downloading of pages...")
         countForcedPages=0
-        countStillMissingPages=0
+        countForcedFailures=0
         for pagename in forcedWikiDownloadsPagenames:
             if DownloadPage(fancy, pagename, None):
                 countForcedPages+=1
             else:
-                countStillMissingPages+=1
-        s=f"   {countForcedPages} forced pages downloaded     {countStillMissingPages} could not be downloaded"
-        Log(s)
-        report+=s+"\n"
+                countForcedFailures+=1
+        Total(f"   {countForcedPages} forced pages downloaded     {countForcedFailures} could not be downloaded")
+
+    # ------------------------------------------------------------------------------------------------
+    # Sync the File: namespace (NS 6) -- photos and other uploads.
+    # File pages are stored under the Files/ subdirectory (source .txt, metadata .xml, and the binary itself),
+    # kept separate from the flat main-namespace files so the missing/deletion logic above never touches them.
+    # Note: a File page whose name ends in .txt or .xml could collide with the .txt/.xml listing below; this is
+    # ignored because Fancyclopedia File pages are essentially all photos (.jpg/.png/.gif).
+    # downloadAllFiles (set near the top of main) selects full re-download vs. missing-only.
+    Log("Listing File: pages on the wiki...")
+    wikiFilePagenames: list[str]=[]
+    fileListComplete=True
+    try:
+        for page in fancy.allpages(namespace=6):
+            wikiFilePagenames.append(page.title())
+    except Exception as e:
+        fileListComplete=False
+        Log(f"   ***Exception while listing the File namespace: {e}", isError=True)
+    Total(f"   There are {len(wikiFilePagenames)} File: pages on the wiki")
+
+    # Diagnostic (future-proofing): MediaWiki names are case-sensitive but Windows is not, so flag the cases that rely on that difference.
+    #   - non-lowercase extensions are where the binary's real suffix differs from our case-encoded stem (handled below, but worth knowing how common)
+    #   - titles that become identical once lowercased would collide on Windows if not for the ^^ encoding
+    nonLowercaseExt=[t for t in wikiFilePagenames if os.path.splitext(t)[1] != os.path.splitext(t)[1].lower()]
+    if nonLowercaseExt:
+        Total(f"   {len(nonLowercaseExt)} File: pages have a non-lowercase extension")
+        for t in nonLowercaseExt:
+            Log("      non-lowercase extension: "+t)
+    loweredFileTitles: dict[str, list[str]]={}
+    for t in wikiFilePagenames:
+        loweredFileTitles.setdefault(t.lower(), []).append(t)
+    caseCollisions=[v for v in loweredFileTitles.values() if len(v) > 1]
+    if caseCollisions:
+        Total(f"   ***{len(caseCollisions)} sets of File: pages differ only by letter case and would collide on Windows", isError=True)
+        for v in caseCollisions:
+            Log("      case collision: "+str(v), isError=True)
+
+    # Build the set of File pages already in the local Files/ directory (those with both a .txt and an .xml)
+    localFileTxt=[p[:-4] for p in os.listdir("Files") if p.endswith(".txt")]
+    localFileXml=[p[:-4] for p in os.listdir("Files") if p.endswith(".xml")]
+    localFilePagenames: set[str]={"File:"+WindowsFilenameToWikiPagename(s) for s in set(localFileTxt)&set(localFileXml)}
+
+    if downloadAllFiles:
+        fileTargets=wikiFilePagenames
+    else:
+        fileTargets=list(set(wikiFilePagenames)-localFilePagenames)   # just the File pages we don't already have
+    if len(fileTargets) == 0:
+        Total("   There are no File: pages to download")
+    else:
+        Log(f"Downloading {len(fileTargets)} File: pages...")
+        countFiles=0
+        countFileFailures=0
+        for fp in fileTargets:
+            if DownloadPage(fancy, fp, None):
+                countFiles+=1
+            else:
+                countFileFailures+=1
+        Total(f"   {countFiles} File: pages downloaded     {countFileFailures} could not be downloaded")
+
+    # Delete local File pages which are no longer on the wiki (removes the .xml, .txt, and the binary)
+    if not fileListComplete:
+        Total("   The File: page list was incomplete (the namespace failed to download), so File deletions are being skipped", isError=True)
+    else:
+        deletedFilePagenames=list(localFilePagenames-set(wikiFilePagenames))
+        if len(deletedFilePagenames) == 0:
+            Total("   There are no deleted File: pages to remove")
+        else:
+            Log("Removing deleted File: pages...")
+            countDeletedFiles=0
+            for pname in deletedFilePagenames:
+                stem=LocalStemForPage(pname)
+                removedAny=False
+                for suffix in (".xml", ".txt", ""):     # metadata, source, and the binary itself (no extension)
+                    if os.path.isfile(stem+suffix):
+                        os.remove(stem+suffix)
+                        removedAny=True
+                if removedAny:
+                    countDeletedFiles+=1
+                    Log("   Removed: "+pname)
+            Total(f"   {countDeletedFiles} deleted File: pages removed")
 
     # Delete local copies of pages which have disappeared from the wiki
     # Note that we don't detect and delete local copies of attached files which have been removed from the wiki when the associated wiki page remains.
 
 
-    if len(deletedWikiPagenames) == 0:
-        Log("There are no deleted pages to remove")
+    if not wikiListComplete:
+        Total("   The wiki page list was incomplete (a namespace failed to download), so deletions are being skipped to avoid removing pages that still exist", isError=True)
+    elif len(deletedWikiPagenames) == 0:
+        Total("   There are no deleted pages to remove")
     else:
         Log("Removing deleted pages...")
         countOfDeletedPages=0
@@ -260,14 +360,13 @@ def main():
                 countOfUndeletedPages+=1
                 Log("   ( files could not be found)")
 
-        s=f"   {countOfDeletedPages} deleted pages removed    {countOfUndeletedPages} could not be found"
-        Log(s)
-        report+=s+"\n"
+        Total(f"   {countOfDeletedPages} deleted pages removed    {countOfUndeletedPages} could not be found")
 
     Log("Done")
 
     print("\n\n----------------------")
-    print(report)
+    print("Summary of totals:")
+    print("\n".join(summary))
 
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
@@ -314,12 +413,20 @@ def DecodeDatetime(dtstring: str) -> datetime.datetime:
     return datetime.datetime.strptime(dtstring[:-6], '%Y-%m-%dT%H:%M:%S')
 
 
+# Return the local path stem (no extension) where a page's files are stored.
+# File: pages go under the Files/ subdirectory with the namespace prefix stripped (the folder implies it); everything else is stored flat.
+def LocalStemForPage(wikiPagename: str) -> str:
+    if wikiPagename.startswith("File:"):
+        return os.path.join("Files", WikiPagenameToWindowsFilename(wikiPagename.split(":", 1)[1]))
+    return WikiPagenameToWindowsFilename(wikiPagename)
+
+
 # Download a page from Mediawiki and possibly store it locally.
 # The page's contents are stored in their files, the source in <saveName>.txt, the rendered HTML in <saveName>..html, and all the page meta information in <saveName>.xml
 # Setting pageData to None forces downloading of the page, reghardless of whether it is already stored locally.  This is mostly useful to overwrite the hidden consequences of old sync errors
 # The return value is True when the local version of the page has been updated, and False otherwise
 def DownloadPage(fancy, wikiPagename: str, pageData: dict|None) -> bool:
-    localFilename=WikiPagenameToWindowsFilename(wikiPagename)   # Get the windows filesystem compatible versions of the pagename
+    localFilename=LocalStemForPage(wikiPagename)   # The windows-filesystem-compatible local path stem (under Files/ for File: pages, flat otherwise)
 
     # If we set updateAll to True, then we skip the date che    cks and always do the update
     action="Downloading"
@@ -353,31 +460,56 @@ def DownloadPage(fancy, wikiPagename: str, pageData: dict|None) -> bool:
     if page.text is None or len(page.text) == 0:
         Log("       empty page: "+wikiPagename)
 
-    # Write the page source to <wikiPagename>.txt
+    # Write the page to temporary files first, then move them into place only once both have been
+    # written successfully.  If we're interrupted mid-write, the previous complete .txt/.xml pair is
+    # left intact rather than a half-updated page.  (The next run still repairs any partial pair via
+    # the symmetric-difference check; this just keeps the common case clean.)
     text=page.text
+    txtTemp=localFilename+".txt.tmp"
     if text is not None:
-        with open(localFilename+".txt", "wb") as file:
+        with open(txtTemp, "wb") as file:
             file.write(text.encode("utf8"))
-    else:
-        # If there's no text, delete any existing txt file
-        if os.path.exists(localFilename+".txt"):
-            os.remove(localFilename+".txt")
 
-    # Write the page's metadata to <wikiPagename>.xml
+    # Write the page's metadata to a temporary .xml file
+    xmlTemp=localFilename+".xml.tmp"
+    xmlWritten=False
     try:
-        SaveMetadata(localFilename+".xml", page)
+        SaveMetadata(xmlTemp, page)
+        xmlWritten=True
     except NoPageError as s:
         if "Fancyclopedia 3:" not in str(s):
-            Log(f"SaveMetaData('{localFilename+".xml"}') failed with a NoPageError exception: '{s}'")
+            Log(f"SaveMetaData('{localFilename}.xml') failed with a NoPageError exception: '{s}'")
+            if os.path.exists(txtTemp):
+                os.remove(txtTemp)
             return False
         Log(f"Ignored: NoPageError '{s}'")
 
-    # Is this a file?
+    # Both files are written: move them into place back-to-back to minimize any inconsistency window.
+    if text is not None:
+        os.replace(txtTemp, localFilename+".txt")
+    elif os.path.exists(localFilename+".txt"):
+        # If there's no text, delete any existing txt file
+        os.remove(localFilename+".txt")
+    if xmlWritten:
+        os.replace(xmlTemp, localFilename+".xml")
+
+    # Is this a file (e.g. a photo)?  If so, download the binary itself to the same Files/ stem, alongside its .txt/.xml.
     if page.is_filepage():
-        # Then download it.
-        _, filename=wikiPagename.split(":")
-        pywikibot.FilePage(fancy, filename).download(filename)
-        Log("       "+filename+" downloaded")
+        # pywikibot's download() forces the saved file's suffix to the URL's real suffix, which would diverge from our
+        # case-encoded stem (e.g. '.J^^P^^G^^' -> '.JPG').  So download to a throwaway temp name (no extension, so the
+        # forced suffix just gets appended) and move the result onto the exact stem, keeping the binary consistent with
+        # its .txt/.xml.  Wrapped so one bad download (IOError, network, hash mismatch) doesn't abort the whole bulk run.
+        try:
+            filePage=pywikibot.FilePage(fancy, wikiPagename)
+            suffix=os.path.splitext(urlparse(filePage.get_file_url()).path)[1]
+            tempName=os.path.join("Files", "_download")
+            if filePage.download(tempName):
+                os.replace(tempName+suffix, localFilename)
+                Log("       binary downloaded to "+localFilename)
+            else:
+                Log(f"       ***binary download failed (bad status or hash mismatch) for {wikiPagename}", isError=True)
+        except Exception as e:
+            Log(f"       ***binary download raised for {wikiPagename}: {e}", isError=True)
 
 
     return True
@@ -391,12 +523,15 @@ def SaveMetadata(localName: str, pageData: pywikibot.Page) -> None:
     ET.SubElement(root, "filename").text=str(pageData.title(as_filename=True))
     ET.SubElement(root, "urlname").text=str(pageData.title(as_url=True))
     ET.SubElement(root, "isRedirectPage").text=str(pageData.isRedirectPage())
+    # numrevisions stays on the private _revisions cache: the only public alternative (page.revisions())
+    # walks revision history (O(N) network), and this value is just the count of revisions loaded so far anyway.
     ET.SubElement(root, "numrevisions").text=str(len(pageData._revisions))
     ET.SubElement(root, "pageid").text=str(pageData.pageid)
-    if len(pageData._revisions) == 0:
+    # revid/exists are cached by the earlier page.text load, so the public accessors add no network traffic.
+    if not pageData.exists():
         ET.SubElement(root, "revid").text="0"
     else:
-        ET.SubElement(root, "revid").text=str(pageData._revid)
+        ET.SubElement(root, "revid").text=str(pageData.latest_revision_id)
     ET.SubElement(root, "edittime").text=str(pageData.latest_revision.timestamp)
     ET.SubElement(root, "permalink").text=str(pageData.permalink())
 
