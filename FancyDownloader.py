@@ -21,11 +21,17 @@ from __future__ import annotations
 import pywikibot
 import xml.etree.ElementTree as ET
 import os
+import sys
+import socket
 import datetime
 from datetime import timedelta
 from urllib.parse import urlparse
 
 from pywikibot.exceptions import NoPageError
+
+# Make sure this script's own directory (where the HelpersPackage/Log symlinks live) is on the import path,
+# regardless of how we're launched (command line, Task Scheduler, or the PyCharm debugger).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from Log import Log, LogOpen
 from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiPagename
@@ -34,6 +40,27 @@ def main():
     # ############################################################################################
     # ###################################  Main  #################################################
     # ############################################################################################
+
+    # ---------------------------------------------------------------------------------------------
+    # Cloudflare bypass (temporary).  Cloudflare currently serves a bot-challenge (403 "Just a moment")
+    # on fancyclopedia.org, which blocks pywikibot entirely.  As a workaround we connect straight to the
+    # wiki's origin server by its IP -- the same trick ConEditor's FTP uses for fanac.org -- so Cloudflare
+    # is out of the path.  Set bypassCloudflare=False once Cloudflare is fixed (e.g. allowlist /api.php) to
+    # return to the normal, TLS-verified route through the domain.
+    #
+    # This must run before pywikibot.Site() below, because the very first API call builds the site family.
+    bypassCloudflare=True
+    if bypassCloudflare:
+        import urllib3, pywikibot.family
+        originIP="162.246.254.57"       # fancyclopedia.org's origin server (change this if the wiki is rehosted)
+        _realGetaddrinfo=socket.getaddrinfo
+        socket.getaddrinfo=lambda host, *a, **k: _realGetaddrinfo(originIP if host == "fancyclopedia.org" else host, *a, **k)
+        # The origin presents the host's own TLS cert, not one valid for fancyclopedia.org (Cloudflare normally
+        # supplies the public cert), so skip verification for this connection.  Acceptable because we pin to a known
+        # origin IP; be aware that with verification off, the wiki login is only as safe as the path to the origin.
+        pywikibot.family.Family.verify_SSL_certificate=lambda self, code: False
+        urllib3.disable_warnings()      # silence the "unverified HTTPS request" warnings
+        print("*** Cloudflare bypass active: connecting directly to the wiki origin at "+originIP)
 
     # This opens the site specified by user-config.py with the credential in user-password.py.
     fancy=pywikibot.Site()
@@ -106,6 +133,24 @@ def main():
         Log(line, isError=isError)
         summary.append(line)
 
+    # Verify we can actually reach the wiki before doing anything else.  A Cloudflare bot-challenge (a 403 "Just a
+    # moment" page) or the site being down returns non-JSON, which pywikibot surfaces deep in the stack as
+    # SiteDefinitionError.  Catch it here and report clearly instead of grinding through every namespace and then
+    # crashing with a raw traceback.  (server_time is cached, so we reuse it for the recentchanges query below.)
+    try:
+        current_time=fancy.server_time()
+    except Exception as e:
+        Log(f"***Cannot reach the wiki API: {e}", isError=True)
+        from tkinter import Tk, messagebox
+        root=Tk()
+        root.withdraw()
+        messagebox.showerror("FancyDownloader: cannot reach the wiki",
+            f"Could not contact https://fancyclopedia.org/api.php.\n\n{type(e).__name__}: {e}\n\n"
+            "This is usually a Cloudflare bot-challenge (a 403 'Just a moment' page) or the site being down -- "
+            "not a problem with the local copy, and nothing was changed. Try again later, or allowlist this machine in Cloudflare.")
+        root.destroy()
+        return
+
     Log("Download list of all pages from the wiki")
     wikiPagenames: list[str]=[]
     wikiListComplete=True       # Cleared if any namespace fails to download fully; we then skip deletions to avoid removing pages that still exist
@@ -128,8 +173,7 @@ def main():
     Total(f"   Number of pages on wiki: {len(wikiPagenames)}")
 
     Log("Download list of recent pages (those updated in the last 120 days), sorted from most- to least-recently-updated")
-    current_time=fancy.server_time()
-    iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(days=120))  # Not for all time, just for the last 120 days
+    iterator=fancy.recentchanges(start=current_time, end=current_time-timedelta(days=120))  # Not for all time, just for the last 120 days (current_time fetched in the reachability check above)
     recentWikiPages: list[dict]=[]
     for v in iterator:
         recentWikiPages.append(v)
