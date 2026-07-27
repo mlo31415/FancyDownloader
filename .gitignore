@@ -1,0 +1,10 @@
+# Whitelist approach: ignore EVERYTHING, then re-include only the files we want in the repo.
+# This keeps PyCharm's generated files (.idea/), caches (__pycache__/, apicache/), the
+# HelpersPackage/Log/PDFHelpers symlinks, user-password.py, and any future junk out of git
+# automatically -- so PyCharm's Commit no longer offers them.
+#
+# To track a new file, add another "!name" line for it below.
+*
+!.gitignore
+!FancyDownloader.py
+!user-config.py
