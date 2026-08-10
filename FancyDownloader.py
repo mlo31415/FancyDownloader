@@ -51,14 +51,17 @@ def main():
     # This must run before pywikibot.Site() below, because the very first API call builds the site family.
     bypassCloudflare=True
     if bypassCloudflare:
-        import urllib3, pywikibot.family
+        import urllib3, pywikibot.family, pywikibot.comms.http
         originIP="162.246.254.57"       # fancyclopedia.org's origin server (change this if the wiki is rehosted)
         _realGetaddrinfo=socket.getaddrinfo
         socket.getaddrinfo=lambda host, *a, **k: _realGetaddrinfo(originIP if host == "fancyclopedia.org" else host, *a, **k)
         # The origin presents the host's own TLS cert, not one valid for fancyclopedia.org (Cloudflare normally
         # supplies the public cert), so skip verification for this connection.  Acceptable because we pin to a known
         # origin IP; be aware that with verification off, the wiki login is only as safe as the path to the origin.
+        # verify_SSL_certificate covers the API calls; FilePage.download() (the binary photos) goes through the shared
+        # requests session directly, bypassing that, so turn verification off on the session too.
         pywikibot.family.Family.verify_SSL_certificate=lambda self, code: False
+        pywikibot.comms.http.session.verify=False
         urllib3.disable_warnings()      # silence the "unverified HTTPS request" warnings
         print("*** Cloudflare bypass active: connecting directly to the wiki origin at "+originIP)
 
@@ -332,12 +335,22 @@ def main():
     # Build the set of File pages already in the local Files/ directory (those with both a .txt and an .xml)
     localFileTxt=[p[:-4] for p in os.listdir("Files") if p.endswith(".txt")]
     localFileXml=[p[:-4] for p in os.listdir("Files") if p.endswith(".xml")]
-    localFilePagenames: set[str]={"File:"+WindowsFilenameToWikiPagename(s) for s in set(localFileTxt)&set(localFileXml)}
+    localFileStems=set(localFileTxt)&set(localFileXml)
+    localFilePagenames: set[str]={"File:"+WindowsFilenameToWikiPagename(s) for s in localFileStems}
+
+    # File pages whose .txt/.xml are present but whose binary (stored at the stem itself) is missing -- e.g. an earlier
+    # download that failed after the metadata was written.  Their up-to-date .xml would otherwise make them look
+    # complete and be skipped, so re-fetch them even in incremental mode.  Restrict to pages still on the wiki.
+    missingBinaryPagenames={"File:"+WindowsFilenameToWikiPagename(s) for s in localFileStems
+                            if not os.path.isfile(os.path.join("Files", s))} & set(wikiFilePagenames)
+    if missingBinaryPagenames:
+        Total(f"   {len(missingBinaryPagenames)} File: pages have their .txt/.xml but a missing binary -- re-fetching")
 
     if downloadAllFiles:
         fileTargets=wikiFilePagenames
     else:
-        fileTargets=list(set(wikiFilePagenames)-localFilePagenames)   # just the File pages we don't already have
+        # File pages we don't have at all, plus ones missing only their binary
+        fileTargets=list((set(wikiFilePagenames)-localFilePagenames) | missingBinaryPagenames)
     if len(fileTargets) == 0:
         Total("   There are no File: pages to download")
     else:
