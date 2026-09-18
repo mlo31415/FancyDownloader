@@ -23,9 +23,13 @@ import xml.etree.ElementTree as ET
 import os
 import sys
 import socket
+import threading
+import queue
 import datetime
 from datetime import timedelta
 from urllib.parse import urlparse
+import tkinter as tk
+from tkinter import scrolledtext
 
 from pywikibot.exceptions import NoPageError
 
@@ -69,8 +73,7 @@ def main():
     fancy=pywikibot.Site()
 
     # Change the working directory to the destination of the downloaded wiki.
-    # This runs before LogOpen (the log lives inside 'site'), so a failure here can't be logged --
-    # instead pop up a dialog so the problem is visible rather than dying with a silent traceback.
+    # A failure here is reported to the log window (we run in a worker thread, so no Tk dialog from here).
     cwd=os.getcwd()
     path=os.path.join(cwd, "..\\site")
     try:
@@ -79,13 +82,9 @@ def main():
         # File: pages (photos and other uploads) are stored under this subdirectory of the site
         os.makedirs("Files", exist_ok=True)
     except OSError as e:
-        from tkinter import Tk, messagebox
-        root=Tk()
-        root.withdraw()
-        messagebox.showerror("FancyDownloader: cannot open site directory",
-            f"Could not set up the download directory:\n\n    {path}\n\n{type(e).__name__}: {e}\n\n"
-            "Make sure the 'site' folder exists one level up from the code and is writable.")
-        root.destroy()
+        print(f"*** Could not set up the download directory: {path}")
+        print(f"      {type(e).__name__}: {e}")
+        print("      Make sure the 'site' folder exists one level up from the code and is writable.")
         return
     del path
 
@@ -144,14 +143,8 @@ def main():
         current_time=fancy.server_time()
     except Exception as e:
         Log(f"***Cannot reach the wiki API: {e}", isError=True)
-        from tkinter import Tk, messagebox
-        root=Tk()
-        root.withdraw()
-        messagebox.showerror("FancyDownloader: cannot reach the wiki",
-            f"Could not contact https://fancyclopedia.org/api.php.\n\n{type(e).__name__}: {e}\n\n"
-            "This is usually a Cloudflare bot-challenge (a 403 'Just a moment' page) or the site being down -- "
-            "not a problem with the local copy, and nothing was changed. Try again later, or allowlist this machine in Cloudflare.")
-        root.destroy()
+        Log("   This is usually a Cloudflare bot-challenge (a 403 'Just a moment' page) or the site being down --", isError=True)
+        Log("   not a problem with the local copy, and nothing was changed. Try again later.", isError=True)
         return
 
     Log("Download list of all pages from the wiki")
@@ -605,5 +598,93 @@ def SaveMetadata(localName: str, pageData: pywikibot.Page) -> None:
 
 
 
+# ------------------------------------------------------------------------------------------------
+# Live log window.  RunWithLogWindow() runs the work function in a background (daemon) thread while a
+# scrollable, minimizable Tk window shows everything it prints.  The Cancel button aborts the run and
+# closes the app; when the work finishes the window is raised to the front and the button becomes Close.
+class _StdoutTee:
+    # Writes to the original stream (the console) AND queues the text for the log window.
+    def __init__(self, original, q: queue.Queue):
+        self.original=original
+        self.queue=q
+    def write(self, text: str):
+        if self.original is not None:
+            try:
+                self.original.write(text)
+            except Exception:
+                pass
+        self.queue.put(text)
+    def flush(self):
+        if self.original is not None:
+            try:
+                self.original.flush()
+            except Exception:
+                pass
+
+
+def RunWithLogWindow(work) -> None:
+    q: queue.Queue=queue.Queue()
+    sys.stdout=_StdoutTee(sys.stdout, q)
+    sys.stderr=_StdoutTee(sys.stderr, q)
+
+    root=tk.Tk()
+    root.title("FancyDownloader")
+    root.geometry("900x600")
+
+    done=threading.Event()
+
+    def close():
+        if done.is_set():
+            root.destroy()      # work already finished -- exit cleanly
+        else:
+            os._exit(1)         # still running -- hard-abort the whole app (the worker is a daemon thread)
+    button=tk.Button(root, text="Cancel", command=close, width=12)
+    button.pack(side="bottom", pady=4)
+    root.protocol("WM_DELETE_WINDOW", close)
+
+    box=scrolledtext.ScrolledText(root, wrap="word", font=("Consolas", 9))
+    box.pack(side="top", fill="both", expand=True)
+    box.configure(state="disabled")
+
+    def poll():
+        # Drain queued output into the widget (on the Tk main thread); auto-scroll only if already at the bottom.
+        chunks=[]
+        try:
+            while True:
+                chunks.append(q.get_nowait())
+        except queue.Empty:
+            pass
+        if chunks:
+            atBottom=box.yview()[1] >= 0.999
+            box.configure(state="normal")
+            box.insert("end", "".join(chunks))
+            box.configure(state="disabled")
+            if atBottom:
+                box.see("end")
+        if done.is_set() and q.empty():
+            # Finished: bring the window to the front and switch Cancel -> Close.
+            button.config(text="Close")
+            root.title("FancyDownloader -- finished")
+            root.deiconify()
+            root.lift()
+            root.attributes("-topmost", True)
+            root.after(700, lambda: root.attributes("-topmost", False))
+            return          # stop polling
+        root.after(100, poll)
+
+    def worker():
+        try:
+            work()
+        except Exception:
+            import traceback
+            traceback.print_exc()   # captured by the tee -> shown in the window
+        finally:
+            done.set()
+
+    threading.Thread(target=worker, daemon=True).start()
+    root.after(100, poll)
+    root.mainloop()
+
+
 if __name__ == "__main__":
-    main()
+    RunWithLogWindow(main)
