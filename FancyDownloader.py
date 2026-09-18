@@ -35,7 +35,8 @@ from pywikibot.exceptions import NoPageError
 
 # Make sure this script's own directory (where the HelpersPackage/Log symlinks live) is on the import path,
 # regardless of how we're launched (command line, Task Scheduler, or the PyCharm debugger).
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_scriptDir=os.path.dirname(os.path.abspath(__file__))   # captured before any chdir, so the log path below resolves correctly
+sys.path.insert(0, _scriptDir)
 
 from Log import Log, LogOpen
 from HelpersPackage import WikiPagenameToWindowsFilename, WindowsFilenameToWikiPagename
@@ -88,7 +89,9 @@ def main():
         return
     del path
 
-    LogOpen("Log", "Error", dated=True)
+    # Write the logs next to the executable (not into the 'site' folder we just chdir'd into), using the standard names.
+    exeDir=os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else _scriptDir
+    LogOpen(os.path.join(exeDir, "Log - FancyDownloader.log"), os.path.join(exeDir, "Log - FancyDownloader - Error.log"))
 
     # Forced (re)download modes -- independent of each other:
     #   downloadAllPages -> (re)download every non-File page on the wiki (a full rebuild of the main local copy).
