@@ -324,9 +324,9 @@ def main():
         loweredFileTitles.setdefault(t.lower(), []).append(t)
     caseCollisions=[v for v in loweredFileTitles.values() if len(v) > 1]
     if caseCollisions:
-        Total(f"   ***{len(caseCollisions)} sets of File: pages differ only by letter case and would collide on Windows", isError=True)
+        Total(f"   {len(caseCollisions)} sets of File: pages differ only by letter case -- stored separately via the ^^ encoding, but likely duplicate uploads worth reviewing")
         for v in caseCollisions:
-            Log("      case collision: "+str(v), isError=True)
+            Log("      case-only pair: "+str(v))
 
     # Build the set of File pages already in the local Files/ directory (those with both a .txt and an .xml)
     localFileTxt=[p[:-4] for p in os.listdir("Files") if p.endswith(".txt")]
