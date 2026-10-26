@@ -417,9 +417,9 @@ def main():
 
     Log("Done")
 
-    print("\n\n----------------------")
-    print("Summary of totals:")
-    print("\n".join(summary))
+    Log("\n\n----------------------")
+    Log("Summary of totals:")
+    Log("\n".join(summary))
 
 #-----------------------------------------
 # Find text bracketed by <b>...</b>
